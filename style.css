@@ -683,3 +683,9 @@ body {
     border-left: none;
   }
 }
+.header-auth-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
