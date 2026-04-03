@@ -1,6 +1,8 @@
 let products = [];
 let orders = [];
+let notifications = [];
 let editingProductId = null;
+let notificationsPollingId = null;
 
 const statProducts = document.getElementById("stat-products");
 const statOrders = document.getElementById("stat-orders");
@@ -29,6 +31,10 @@ const ordersAdminList = document.getElementById("orders-admin-list");
 
 const logoutBtn = document.getElementById("logout-btn");
 const exportOrdersBtn = document.getElementById("export-orders-btn");
+
+const adminNotificationBadge = document.getElementById("admin-notification-badge");
+const adminNotificationList = document.getElementById("admin-notification-list");
+const adminReadAllBtn = document.getElementById("admin-read-all-btn");
 
 const ORDER_STATUSES = [
   "nuovo",
@@ -354,6 +360,78 @@ function renderOrders() {
     .join("");
 }
 
+function updateNotificationBadge(unreadCount) {
+  if (!adminNotificationBadge) return;
+
+  const count = Number(unreadCount || 0);
+  adminNotificationBadge.textContent = String(count);
+  adminNotificationBadge.style.display = count > 0 ? "inline-flex" : "none";
+}
+
+function renderNotifications() {
+  if (!adminNotificationList) return;
+
+  updateNotificationBadge(
+    notifications.filter((item) => !item.isRead).length
+  );
+
+  if (!notifications.length) {
+    adminNotificationList.innerHTML = `
+      <div class="muted-box">Nessuna notifica disponibile.</div>
+    `;
+    return;
+  }
+
+  adminNotificationList.innerHTML = notifications
+    .map((notification) => {
+      const unreadStyle = notification.isRead
+        ? ""
+        : "border:1px solid #bae6fd;background:#f0f9ff;";
+
+      return `
+        <article class="admin-card" style="${unreadStyle}">
+          <div class="admin-card-head">
+            <div>
+              <h3 style="font-size:18px;">${escapeHtml(notification.title || "Notifica")}</h3>
+              <div class="admin-meta">
+                ${escapeHtml(notification.message || "")}<br />
+                Data: ${formatDate(notification.createdAt)}<br />
+                Tipo: ${escapeHtml(notification.type || "generic")}
+              </div>
+            </div>
+
+            <div>
+              ${
+                notification.isRead
+                  ? `<span class="status-badge" style="background:#ecfccb;color:#3f6212;">letta</span>`
+                  : `<span class="status-badge">nuova</span>`
+              }
+            </div>
+          </div>
+
+          <div class="admin-card-actions">
+            ${
+              notification.link
+                ? `<button class="btn-secondary" onclick="openNotification('${escapeHtml(notification.id)}', '${escapeHtml(notification.link)}')">Apri</button>`
+                : ""
+            }
+
+            ${
+              notification.isRead
+                ? ""
+                : `<button class="btn-outline" onclick="markNotificationAsRead('${escapeHtml(notification.id)}')">Segna come letta</button>`
+            }
+
+            <button class="btn-outline" onclick="deleteNotification('${escapeHtml(notification.id)}')">
+              Elimina
+            </button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 async function loadProducts() {
   try {
     const response = await fetch("/api/products", {
@@ -394,6 +472,98 @@ async function loadOrders() {
     if (ordersAdminList) {
       ordersAdminList.innerHTML = `<div class="muted-box">Errore nel caricamento ordini.</div>`;
     }
+  }
+}
+
+async function loadNotifications() {
+  try {
+    const { response, data, unauthorized } = await adminFetch("/api/notifications");
+
+    if (unauthorized) return;
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Errore caricamento notifiche");
+    }
+
+    notifications = Array.isArray(data?.notifications) ? data.notifications : [];
+    renderNotifications();
+
+    if (typeof data?.unreadCount !== "undefined") {
+      updateNotificationBadge(data.unreadCount);
+    }
+  } catch (error) {
+    console.error("Errore caricamento notifiche admin:", error);
+    if (adminNotificationList) {
+      adminNotificationList.innerHTML = `<div class="muted-box">Errore nel caricamento notifiche.</div>`;
+    }
+  }
+}
+
+async function markNotificationAsRead(notificationId) {
+  try {
+    const { response, data, unauthorized } = await adminFetch(`/api/notifications/${notificationId}/read`, {
+      method: "POST"
+    });
+
+    if (unauthorized) return;
+
+    if (!response.ok) {
+      alert(data?.message || "Impossibile segnare la notifica come letta.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore lettura notifica:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    const { response, data, unauthorized } = await adminFetch("/api/notifications/read-all", {
+      method: "POST"
+    });
+
+    if (unauthorized) return;
+
+    if (!response.ok) {
+      alert(data?.message || "Impossibile aggiornare le notifiche.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore lettura notifiche:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function deleteNotification(notificationId) {
+  try {
+    const { response, data, unauthorized } = await adminFetch(`/api/notifications/${notificationId}`, {
+      method: "DELETE"
+    });
+
+    if (unauthorized) return;
+
+    if (!response.ok) {
+      alert(data?.message || "Impossibile eliminare la notifica.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore eliminazione notifica:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function openNotification(notificationId, link) {
+  await markNotificationAsRead(notificationId);
+
+  if (link) {
+    window.location.href = link;
   }
 }
 
@@ -510,7 +680,7 @@ async function updateOrderStatus(orderId, status) {
       return;
     }
 
-    await loadOrders();
+    await Promise.all([loadOrders(), loadNotifications()]);
   } catch (error) {
     console.error(error);
     alert("Errore di connessione al server.");
@@ -571,15 +741,28 @@ if (exportOrdersBtn) {
   exportOrdersBtn.addEventListener("click", handleExportOrders);
 }
 
+if (adminReadAllBtn) {
+  adminReadAllBtn.addEventListener("click", markAllNotificationsAsRead);
+}
+
 window.editProduct = editProduct;
 window.deleteProduct = deleteProduct;
 window.updateOrderStatus = updateOrderStatus;
 window.downloadInvoice = downloadInvoice;
+window.markNotificationAsRead = markNotificationAsRead;
+window.deleteNotification = deleteNotification;
+window.openNotification = openNotification;
 
 async function initAdminDashboard() {
   await checkAdminSession();
   resetProductForm();
-  await Promise.all([loadProducts(), loadOrders()]);
+  await Promise.all([loadProducts(), loadOrders(), loadNotifications()]);
+
+  if (notificationsPollingId) {
+    clearInterval(notificationsPollingId);
+  }
+
+  notificationsPollingId = setInterval(loadNotifications, 25000);
 }
 
 initAdminDashboard();
