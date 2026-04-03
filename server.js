@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("node:fs/promises");
 const session = require("express-session");
 const multer = require("multer");
+const nodemailer = require("nodemailer");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,6 +23,12 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
 const DEMO_AGE_VERIFICATION =
   String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
+
+const MAIL_FROM = process.env.MAIL_FROM || "no-reply@example.com";
+const SMTP_HOST = process.env.SMTP_HOST || "";
+const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
+const SMTP_USER = process.env.SMTP_USER || "";
+const SMTP_PASS = process.env.SMTP_PASS || "";
 
 const COUPONS = [
   { code: "SHOP10", type: "percent", value: 10 },
@@ -230,6 +237,136 @@ function calculateAgeFromBirthDate(birthDateValue) {
   return age;
 }
 
+function createMailTransporter() {
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    }
+  });
+}
+
+function formatPrice(value) {
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR"
+  }).format(Number(value || 0));
+}
+
+function getPaymentLabel(method) {
+  const labels = {
+    card: "Carta",
+    cash: "Pagamento alla consegna",
+    bank: "Bonifico"
+  };
+
+  return labels[method] || method || "-";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildOrderConfirmationHtml(order) {
+  const itemsHtml = (order.items || [])
+    .map((item) => {
+      const lineTotal = Number(item.price || 0) * Number(item.quantity || 0);
+
+      return `
+        <tr>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.name)}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${Number(item.quantity || 0)}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatPrice(lineTotal)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#111827;">
+      <h1 style="margin-bottom:8px;">Ordine confermato 🎉</h1>
+      <p style="color:#4b5563;line-height:1.6;">
+        Ciao ${escapeHtml(order.customer?.name || "cliente")}, grazie per il tuo acquisto su <strong>UrbanVibe</strong>.
+      </p>
+
+      <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin:20px 0;">
+        <p style="margin:0 0 8px;"><strong>ID ordine:</strong> ${escapeHtml(order.id)}</p>
+        <p style="margin:0 0 8px;"><strong>Data:</strong> ${new Date(order.createdAt).toLocaleString("it-IT")}</p>
+        <p style="margin:0 0 8px;"><strong>Cliente:</strong> ${escapeHtml(order.customer?.name || "-")}</p>
+        <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(order.customer?.email || "-")}</p>
+        <p style="margin:0 0 8px;"><strong>Pagamento:</strong> ${escapeHtml(getPaymentLabel(order.payment?.method))}</p>
+        <p style="margin:0;"><strong>Totale:</strong> ${formatPrice(order.total || 0)}</p>
+      </div>
+
+      <h2 style="margin:24px 0 12px;">Riepilogo prodotti</h2>
+
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:10px 8px;border-bottom:2px solid #d1d5db;">Prodotto</th>
+            <th style="text-align:center;padding:10px 8px;border-bottom:2px solid #d1d5db;">Qtà</th>
+            <th style="text-align:right;padding:10px 8px;border-bottom:2px solid #d1d5db;">Totale</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+
+      <div style="margin-top:20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:16px;">
+        <p style="margin:0 0 8px;"><strong>Subtotale:</strong> ${formatPrice(order.subtotal || 0)}</p>
+        <p style="margin:0 0 8px;"><strong>Sconto:</strong> ${formatPrice(order.discount || 0)}</p>
+        <p style="margin:0;"><strong>Totale finale:</strong> ${formatPrice(order.total || 0)}</p>
+      </div>
+
+      <p style="margin-top:24px;color:#6b7280;line-height:1.6;">
+        Ti contatteremo se serviranno ulteriori dettagli sulla consegna.
+      </p>
+    </div>
+  `;
+}
+
+async function sendOrderConfirmationEmail(order) {
+  const transporter = createMailTransporter();
+
+  if (!transporter) {
+    console.warn("SMTP non configurato: email conferma non inviata.");
+    return;
+  }
+
+  const to = order.customer?.email;
+  if (!to) {
+    console.warn("Email cliente mancante: conferma non inviata.");
+    return;
+  }
+
+  await transporter.sendMail({
+    from: MAIL_FROM,
+    to,
+    subject: `Conferma ordine #${order.id} - UrbanVibe`,
+    html: buildOrderConfirmationHtml(order),
+    text: [
+      "Ordine confermato",
+      `ID ordine: ${order.id}`,
+      `Cliente: ${order.customer?.name || "-"}`,
+      `Totale: ${formatPrice(order.total || 0)}`,
+      `Pagamento: ${getPaymentLabel(order.payment?.method)}`
+    ].join("\n")
+  });
+}
+
 /* =========================
    AUTH ADMIN
 ========================= */
@@ -433,6 +570,12 @@ app.post("/api/orders", async (req, res) => {
 
     orders.push(newOrder);
     await writeOrders(orders);
+
+    try {
+      await sendOrderConfirmationEmail(newOrder);
+    } catch (mailError) {
+      console.error("Errore invio email conferma ordine:", mailError);
+    }
 
     res.status(201).json({
       message: "Ordine salvato con successo",
