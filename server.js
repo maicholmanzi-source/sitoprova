@@ -20,6 +20,8 @@ const uploadDir = path.join(imagesDir, "uploads");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
+const DEMO_AGE_VERIFICATION =
+  String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
 
 const COUPONS = [
   { code: "SHOP10", type: "percent", value: 10 },
@@ -206,6 +208,28 @@ function sanitizePayment(payment) {
   };
 }
 
+function calculateAgeFromBirthDate(birthDateValue) {
+  if (!birthDateValue) return 0;
+
+  const today = new Date();
+  const birthDate = new Date(`${birthDateValue}T00:00:00`);
+
+  if (Number.isNaN(birthDate.getTime())) return 0;
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+
+  const hasHadBirthdayThisYear =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() &&
+      today.getDate() >= birthDate.getDate());
+
+  if (!hasHadBirthdayThisYear) {
+    age -= 1;
+  }
+
+  return age;
+}
+
 /* =========================
    AUTH ADMIN
 ========================= */
@@ -315,7 +339,7 @@ app.post("/api/coupons/validate", (req, res) => {
 
 app.post("/api/orders", async (req, res) => {
   try {
-    const { customer, items, couponCode, payment } = req.body;
+    const { customer, items, couponCode, payment, ageVerification } = req.body;
 
     if (!customer || !items || !Array.isArray(items) || !items.length) {
       return res.status(400).json({ message: "Dati ordine non validi" });
@@ -323,6 +347,32 @@ app.post("/api/orders", async (req, res) => {
 
     if (!customer.name || !customer.email || !customer.address || !customer.city) {
       return res.status(400).json({ message: "Dati cliente incompleti" });
+    }
+
+    let verifiedAge = null;
+
+    if (DEMO_AGE_VERIFICATION) {
+      if (
+        !ageVerification ||
+        !ageVerification.birthDate ||
+        !ageVerification.confirmedMajority
+      ) {
+        return res.status(400).json({
+          message: "Verifica età mancante"
+        });
+      }
+
+      verifiedAge = calculateAgeFromBirthDate(ageVerification.birthDate);
+
+      if (verifiedAge < 18) {
+        return res.status(403).json({
+          message: "Ordine non consentito ai minori"
+        });
+      }
+    } else {
+      return res.status(403).json({
+        message: "Verifica età reale non ancora configurata"
+      });
     }
 
     const subtotal = items.reduce((sum, item) => {
@@ -372,7 +422,13 @@ app.post("/api/orders", async (req, res) => {
             value: appliedCoupon.value
           }
         : null,
-      payment: sanitizePayment(payment)
+      payment: sanitizePayment(payment),
+      ageVerification: {
+        mode: "demo",
+        birthDate: ageVerification.birthDate,
+        confirmedMajority: true,
+        verifiedAge
+      }
     };
 
     orders.push(newOrder);
@@ -559,7 +615,10 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         "Pagamento",
         "Carta Nome",
         "Carta Ultime 4",
-        "Scadenza"
+        "Scadenza",
+        "Età verificata",
+        "Data nascita",
+        "Verifica età"
       ]
     ];
 
@@ -585,7 +644,10 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         order.payment?.method || "",
         order.payment?.cardName || "",
         order.payment?.cardNumberLast4 || "",
-        order.payment?.cardExpiry || ""
+        order.payment?.cardExpiry || "",
+        order.ageVerification?.verifiedAge || "",
+        order.ageVerification?.birthDate || "",
+        order.ageVerification?.mode || ""
       ]);
     });
 

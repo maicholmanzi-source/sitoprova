@@ -17,6 +17,11 @@ const cardNumberInput = document.getElementById("card-number");
 const cardExpiryInput = document.getElementById("card-expiry");
 const cardCvvInput = document.getElementById("card-cvv");
 
+const birthDateInput = document.getElementById("birth-date");
+const ageConfirmCheckbox = document.getElementById("age-confirm-checkbox");
+const ageCheckMessage = document.getElementById("age-check-message");
+const submitOrderBtn = form?.querySelector('button[type="submit"]');
+
 let appliedCoupon = null;
 let discountAmount = 0;
 let finalTotal = 0;
@@ -228,6 +233,84 @@ function togglePaymentFields() {
   cardPaymentFields.style.display = method === "card" ? "grid" : "none";
 }
 
+function calculateAge(birthDateValue) {
+  if (!birthDateValue) return 0;
+
+  const today = new Date();
+  const birthDate = new Date(`${birthDateValue}T00:00:00`);
+
+  if (Number.isNaN(birthDate.getTime())) return 0;
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+
+  const hasHadBirthdayThisYear =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() &&
+      today.getDate() >= birthDate.getDate());
+
+  if (!hasHadBirthdayThisYear) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function getAgeVerificationData() {
+  const birthDate = birthDateInput?.value || "";
+  const confirmedMajority = Boolean(ageConfirmCheckbox?.checked);
+  const age = calculateAge(birthDate);
+
+  return {
+    birthDate,
+    confirmedMajority,
+    age
+  };
+}
+
+function validateAgeVerification(ageVerification) {
+  if (!ageVerification.birthDate) {
+    return {
+      valid: false,
+      message: "Inserisci la data di nascita."
+    };
+  }
+
+  if (ageVerification.age < 18) {
+    return {
+      valid: false,
+      message: "Devi essere maggiorenne per confermare l’ordine."
+    };
+  }
+
+  if (!ageVerification.confirmedMajority) {
+    return {
+      valid: false,
+      message: "Devi confermare di essere maggiorenne."
+    };
+  }
+
+  return {
+    valid: true,
+    message: "Verifica età completata."
+  };
+}
+
+function updateAgeVerificationUI() {
+  const ageVerification = getAgeVerificationData();
+  const validation = validateAgeVerification(ageVerification);
+
+  if (ageCheckMessage) {
+    ageCheckMessage.textContent = validation.message;
+    ageCheckMessage.style.color = validation.valid ? "#15803d" : "#b91c1c";
+  }
+
+  if (submitOrderBtn) {
+    submitOrderBtn.disabled = !validation.valid;
+    submitOrderBtn.style.opacity = validation.valid ? "1" : "0.6";
+    submitOrderBtn.style.cursor = validation.valid ? "pointer" : "not-allowed";
+  }
+}
+
 function getCustomerData() {
   return {
     name: document.getElementById("name")?.value.trim() || "",
@@ -295,6 +378,14 @@ async function submitOrder(event) {
     return;
   }
 
+  const ageVerification = getAgeVerificationData();
+  const ageValidation = validateAgeVerification(ageVerification);
+
+  if (!ageValidation.valid) {
+    alert(ageValidation.message);
+    return;
+  }
+
   try {
     const response = await fetch("/api/orders", {
       method: "POST",
@@ -305,7 +396,8 @@ async function submitOrder(event) {
         customer,
         items: cart,
         couponCode: appliedCoupon ? appliedCoupon.code : null,
-        payment
+        payment,
+        ageVerification
       })
     });
 
@@ -377,9 +469,19 @@ if (paymentMethodRadios.length) {
   });
 }
 
+if (birthDateInput) {
+  birthDateInput.addEventListener("change", updateAgeVerificationUI);
+  birthDateInput.addEventListener("input", updateAgeVerificationUI);
+}
+
+if (ageConfirmCheckbox) {
+  ageConfirmCheckbox.addEventListener("change", updateAgeVerificationUI);
+}
+
 if (form) {
   form.addEventListener("submit", submitOrder);
 }
 
 togglePaymentFields();
 renderSummary();
+updateAgeVerificationUI();
