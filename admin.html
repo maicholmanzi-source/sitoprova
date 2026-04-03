@@ -6,33 +6,38 @@
   <title>Admin Dashboard - UrbanVibe</title>
   <link rel="stylesheet" href="style.css" />
   <style>
+    body {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
     .admin-shell {
-      max-width: 1280px;
-      margin: 32px auto;
-      padding: 0 20px 40px;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
     }
 
     .admin-topbar {
-      background: #0f172a;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
       color: white;
-      padding: 18px 24px;
-      border-radius: 20px;
+      border-radius: 26px;
+      padding: 26px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
+      gap: 18px;
       flex-wrap: wrap;
-      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
     }
 
     .admin-topbar h1 {
-      font-size: 28px;
-      margin-bottom: 4px;
+      font-size: 34px;
+      margin-bottom: 8px;
     }
 
     .admin-topbar p {
       color: #cbd5e1;
-      font-size: 14px;
+      line-height: 1.6;
     }
 
     .admin-topbar-actions {
@@ -41,35 +46,71 @@
       flex-wrap: wrap;
     }
 
-    .admin-section {
-      margin-top: 28px;
+    .admin-grid-stats {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .stat-card {
       background: white;
-      border-radius: 20px;
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .stat-card span {
+      display: block;
+      color: #64748b;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .stat-card strong {
+      font-size: 30px;
+      color: #0f172a;
+    }
+
+    .admin-grid-main {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .admin-panel {
+      background: white;
+      border-radius: 24px;
       padding: 24px;
       box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     }
 
-    .admin-section h2 {
-      font-size: 24px;
+    .admin-panel h2 {
+      font-size: 28px;
       margin-bottom: 10px;
       color: #0f172a;
     }
 
-    .admin-section p.section-text {
-      color: #6b7280;
-      margin-bottom: 22px;
+    .admin-panel p {
+      color: #64748b;
       line-height: 1.6;
-    }
-
-    .admin-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      margin-bottom: 18px;
     }
 
     .admin-form {
       display: grid;
       gap: 14px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 8px;
     }
 
     .admin-form input,
@@ -90,96 +131,96 @@
       border-color: #06b6d4;
     }
 
-    .admin-form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .field-label {
-      display: block;
-      font-size: 14px;
-      font-weight: 700;
-      color: #374151;
-      margin-bottom: 8px;
+    .admin-form textarea {
+      resize: vertical;
+      min-height: 100px;
     }
 
     .admin-form-actions {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      margin-top: 4px;
     }
 
     .admin-status {
       margin-top: 12px;
+      min-height: 22px;
       padding: 12px 14px;
       border-radius: 12px;
       font-weight: 600;
-      display: none;
+    }
+
+    .admin-status.success {
+      background: #ecfdf5;
+      color: #166534;
     }
 
     .admin-status.error {
-      display: block;
       background: #fef2f2;
       color: #991b1b;
     }
 
-    .admin-status.success {
-      display: block;
-      background: #ecfdf5;
-      color: #065f46;
-    }
-
-    .preview-box {
-      margin-top: 8px;
+    .image-preview-box {
       display: none;
+      border: 1px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 12px;
+      background: #f8fafc;
     }
 
-    .preview-box img {
+    .image-preview-box img {
+      display: block;
       width: 100%;
       max-width: 220px;
-      height: 180px;
+      height: 170px;
       object-fit: cover;
       border-radius: 14px;
       border: 1px solid #e5e7eb;
     }
 
+    .admin-stack {
+      display: grid;
+      gap: 22px;
+    }
+
     .admin-list {
       display: grid;
-      gap: 14px;
+      gap: 16px;
     }
 
     .admin-card {
-      border: 1px solid #e5e7eb;
-      border-radius: 18px;
-      padding: 18px;
       background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 20px;
+      padding: 18px;
     }
 
     .admin-card-head {
       display: flex;
       justify-content: space-between;
-      gap: 14px;
       align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 14px;
       flex-wrap: wrap;
-      margin-bottom: 12px;
     }
 
     .admin-card h3 {
-      color: #0f172a;
+      font-size: 22px;
       margin-bottom: 6px;
+      color: #0f172a;
     }
 
     .admin-meta {
-      color: #6b7280;
-      font-size: 14px;
+      color: #64748b;
       line-height: 1.6;
+      font-size: 14px;
     }
 
     .admin-price {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 800;
-      color: #0891b2;
+      color: #0f172a;
       white-space: nowrap;
     }
 
@@ -191,207 +232,228 @@
     }
 
     .order-items {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #eee;
       display: grid;
-      gap: 8px;
+      gap: 10px;
+      margin: 14px 0;
+      padding: 14px;
+      border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
     }
 
     .order-item-row {
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      color: #374151;
+      align-items: center;
+      color: #334155;
       font-size: 14px;
     }
 
     .order-footer {
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid #eee;
       display: flex;
       justify-content: space-between;
-      gap: 12px;
-      align-items: center;
+      gap: 16px;
+      align-items: flex-end;
       flex-wrap: wrap;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid #e5e7eb;
     }
 
     .status-badge {
       display: inline-block;
-      padding: 7px 11px;
+      padding: 8px 12px;
       border-radius: 999px;
+      background: #e0f2fe;
+      color: #075985;
       font-size: 13px;
       font-weight: 700;
-      background: #eff6ff;
-      color: #1d4ed8;
+      text-transform: capitalize;
     }
 
     .inline-select {
-      padding: 10px 12px;
+      padding: 11px 12px;
       border: 1px solid #d1d5db;
-      border-radius: 10px;
+      border-radius: 12px;
       background: white;
       font-size: 14px;
+      min-width: 170px;
       outline: none;
     }
 
     .muted-box {
       background: #f8fafc;
       border: 1px dashed #cbd5e1;
+      color: #64748b;
       border-radius: 16px;
       padding: 16px;
-      color: #64748b;
+      line-height: 1.6;
     }
 
-    @media (max-width: 980px) {
-      .admin-grid {
+    .section-head-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .section-head-row h2,
+    .section-head-row p {
+      margin: 0;
+    }
+
+    @media (max-width: 1100px) {
+      .admin-grid-main {
         grid-template-columns: 1fr;
+      }
+
+      .admin-grid-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
     @media (max-width: 640px) {
       .admin-shell {
-        padding: 0 16px 32px;
+        padding: 18px 16px 30px;
       }
 
-      .admin-topbar {
-        padding: 18px;
+      .admin-topbar,
+      .admin-panel,
+      .stat-card {
+        padding: 20px;
       }
 
-      .admin-section {
-        padding: 18px;
-      }
-
-      .admin-form-grid {
+      .admin-grid-stats {
         grid-template-columns: 1fr;
+      }
+
+      .admin-topbar h1 {
+        font-size: 28px;
       }
     }
   </style>
 </head>
 <body>
-  <div class="admin-shell">
+  <main class="admin-shell">
     <header class="admin-topbar">
       <div>
         <h1>Dashboard Admin</h1>
-        <p>Gestisci prodotti, ordini e statistiche di UrbanVibe.</p>
+        <p>Gestisci prodotti, ordini, fatture demo e attività del negozio UrbanVibe.</p>
       </div>
 
       <div class="admin-topbar-actions">
-        <a href="index.html" class="btn-outline">Vai al negozio</a>
+        <a href="index.html" class="btn-outline">Vai allo shop</a>
         <button id="export-orders-btn" class="btn-secondary">Esporta ordini CSV</button>
         <button id="logout-btn" class="btn-primary">Logout</button>
       </div>
     </header>
 
-    <section class="admin-section">
-      <h2>Statistiche</h2>
-      <p class="section-text">
-        Una panoramica veloce del negozio: prodotti, ordini ricevuti e fatturato totale.
-      </p>
+    <section class="admin-grid-stats">
+      <article class="stat-card">
+        <span>Prodotti</span>
+        <strong id="stat-products">0</strong>
+      </article>
 
-      <section class="stats-grid">
-        <article class="stat-card">
-          <span class="stat-label">Prodotti totali</span>
-          <strong id="stat-products" class="stat-value">0</strong>
-        </article>
+      <article class="stat-card">
+        <span>Ordini</span>
+        <strong id="stat-orders">0</strong>
+      </article>
 
-        <article class="stat-card">
-          <span class="stat-label">Ordini totali</span>
-          <strong id="stat-orders" class="stat-value">0</strong>
-        </article>
+      <article class="stat-card">
+        <span>Nuovi ordini</span>
+        <strong id="stat-new-orders">0</strong>
+      </article>
 
-        <article class="stat-card">
-          <span class="stat-label">Ordini nuovi</span>
-          <strong id="stat-new-orders" class="stat-value">0</strong>
-        </article>
-
-        <article class="stat-card">
-          <span class="stat-label">Fatturato totale</span>
-          <strong id="stat-revenue" class="stat-value">€ 0.00</strong>
-        </article>
-      </section>
+      <article class="stat-card">
+        <span>Fatturato</span>
+        <strong id="stat-revenue">€ 0,00</strong>
+      </article>
     </section>
 
-    <section class="admin-section">
-      <h2>Gestione prodotti</h2>
-      <p class="section-text">
-        Aggiungi nuovi prodotti o modifica quelli esistenti dal pannello qui sotto.
-      </p>
+    <section class="admin-grid-main">
+      <div class="admin-panel">
+        <h2>Gestione prodotto</h2>
+        <p>Crea un nuovo prodotto oppure modifica uno esistente.</p>
 
-      <div class="admin-grid">
-        <div>
-          <form id="product-form" class="admin-form" enctype="multipart/form-data">
-            <input type="hidden" id="product-id" />
+        <form id="product-form" class="admin-form">
+          <input type="hidden" id="product-id" />
+          <input type="hidden" id="existing-image" />
 
-            <div>
-              <label class="field-label" for="product-name">Nome prodotto</label>
-              <input type="text" id="product-name" placeholder="Es. T-shirt Oversize Black" required />
-            </div>
-
-            <div class="admin-form-grid">
-              <div>
-                <label class="field-label" for="product-category">Categoria</label>
-                <input type="text" id="product-category" placeholder="Abbigliamento" required />
-              </div>
-
-              <div>
-                <label class="field-label" for="product-price">Prezzo</label>
-                <input type="number" id="product-price" min="0" step="0.01" placeholder="49.99" required />
-              </div>
-            </div>
-
-            <div>
-              <label class="field-label" for="product-description">Descrizione breve</label>
-              <textarea id="product-description" rows="3" placeholder="Breve descrizione del prodotto" required></textarea>
-            </div>
-
-            <div>
-              <label class="field-label" for="product-long-description">Descrizione completa</label>
-              <textarea id="product-long-description" rows="5" placeholder="Descrizione lunga del prodotto" required></textarea>
-            </div>
-
-            <div>
-              <label class="field-label" for="product-image-file">Immagine prodotto</label>
-              <input type="file" id="product-image-file" accept="image/*" />
-              <input type="hidden" id="existing-image" />
-            </div>
-
-            <div id="image-preview-box" class="preview-box">
-              <img id="image-preview" alt="Anteprima immagine prodotto" />
-            </div>
-
-            <div class="admin-form-actions">
-              <button type="submit" id="product-submit-btn" class="btn-primary">Salva prodotto</button>
-              <button type="button" id="product-cancel-btn" class="btn-secondary">Annulla modifica</button>
-            </div>
-
-            <div id="product-status" class="admin-status"></div>
-          </form>
-        </div>
-
-        <div>
-          <div class="muted-box">
-            <strong>Consiglio:</strong> carica immagini con proporzioni regolari e scrivi descrizioni brevi ma chiare.  
-            Quando clicchi “Modifica” su un prodotto esistente, il form verrà compilato automaticamente.
+          <div>
+            <label class="field-label" for="product-name">Nome prodotto</label>
+            <input type="text" id="product-name" placeholder="Es. Vino Rosso Riserva" required />
           </div>
 
-          <div style="height: 16px;"></div>
+          <div>
+            <label class="field-label" for="product-category">Categoria</label>
+            <input type="text" id="product-category" placeholder="Es. vino" required />
+          </div>
+
+          <div>
+            <label class="field-label" for="product-price">Prezzo</label>
+            <input type="number" id="product-price" step="0.01" min="0" placeholder="29.90" required />
+          </div>
+
+          <div>
+            <label class="field-label" for="product-description">Descrizione breve</label>
+            <textarea id="product-description" placeholder="Breve descrizione prodotto" required></textarea>
+          </div>
+
+          <div>
+            <label class="field-label" for="product-long-description">Descrizione completa</label>
+            <textarea id="product-long-description" placeholder="Descrizione lunga prodotto" required></textarea>
+          </div>
+
+          <div>
+            <label class="field-label" for="product-image-file">Immagine</label>
+            <input type="file" id="product-image-file" accept="image/*" />
+          </div>
+
+          <div id="image-preview-box" class="image-preview-box">
+            <img id="image-preview" alt="Anteprima prodotto" />
+          </div>
+
+          <div class="admin-form-actions">
+            <button type="submit" id="product-submit-btn" class="btn-primary">
+              Salva prodotto
+            </button>
+            <button type="button" id="product-cancel-btn" class="btn-outline">
+              Annulla
+            </button>
+          </div>
+        </form>
+
+        <div id="product-status" class="admin-status"></div>
+      </div>
+
+      <div class="admin-stack">
+        <section class="admin-panel">
+          <div class="section-head-row">
+            <div>
+              <h2>Prodotti</h2>
+              <p class="admin-meta">Elenco completo del catalogo disponibile.</p>
+            </div>
+          </div>
 
           <div id="products-admin-list" class="admin-list"></div>
-        </div>
+        </section>
+
+        <section class="admin-panel">
+          <div class="section-head-row">
+            <div>
+              <h2>Ordini</h2>
+              <p class="admin-meta">Gestisci stato ordine, spedizione ed esporta la fattura TXT.</p>
+            </div>
+          </div>
+
+          <div id="orders-admin-list" class="admin-list"></div>
+        </section>
       </div>
     </section>
-
-    <section class="admin-section">
-      <h2>Ordini</h2>
-      <p class="section-text">
-        Visualizza gli ordini ricevuti, controlla i prodotti acquistati e aggiorna lo stato.
-      </p>
-
-      <div id="orders-admin-list" class="admin-list"></div>
-    </section>
-  </div>
+  </main>
 
   <script src="admin.js"></script>
 </body>

@@ -309,6 +309,21 @@ function formatPrice(value) {
   }).format(Number(value || 0));
 }
 
+function formatInvoiceDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleString("it-IT", {
+    dateStyle: "short",
+    timeStyle: "short"
+  });
+}
+
 function getPaymentLabel(method) {
   const labels = {
     card: "Carta",
@@ -390,6 +405,58 @@ function buildOrderConfirmationHtml(order) {
       </p>
     </div>
   `;
+}
+
+function buildInvoiceText(order) {
+  const lines = [];
+  const separator = "========================================";
+
+  lines.push("URBANVIBE");
+  lines.push("FATTURA / RICEVUTA DEMO");
+  lines.push(separator);
+  lines.push(`Numero ordine: ${order.id}`);
+  lines.push(`Data: ${formatInvoiceDate(order.createdAt)}`);
+  lines.push(`Stato: ${order.status || "nuovo"}`);
+  lines.push("");
+
+  lines.push("DATI CLIENTE");
+  lines.push(`Nome: ${order.customer?.name || "-"}`);
+  lines.push(`Email: ${order.customer?.email || "-"}`);
+  lines.push(`Indirizzo: ${order.customer?.address || "-"}`);
+  lines.push(`Città: ${order.customer?.city || "-"}`);
+  lines.push(`Note: ${order.customer?.notes || "-"}`);
+  if (order.shippingNote) {
+    lines.push(`Nota spedizione: ${order.shippingNote}`);
+  }
+  lines.push("");
+
+  lines.push("PRODOTTI");
+  (order.items || []).forEach((item, index) => {
+    const quantity = Number(item.quantity || 0);
+    const price = Number(item.price || 0);
+    const lineTotal = quantity * price;
+
+    lines.push(
+      `${index + 1}. ${item.name} | Qtà: ${quantity} | Prezzo: ${formatPrice(price)} | Totale: ${formatPrice(lineTotal)}`
+    );
+  });
+
+  lines.push("");
+  lines.push("RIEPILOGO");
+  lines.push(`Subtotale: ${formatPrice(order.subtotal || 0)}`);
+  lines.push(`Sconto: ${formatPrice(order.discount || 0)}`);
+  lines.push(`Totale: ${formatPrice(order.total || 0)}`);
+  lines.push(`Pagamento: ${getPaymentLabel(order.payment?.method)}`);
+  lines.push(`Coupon: ${order.coupon?.code || "-"}`);
+
+  if (order.ageVerification?.verifiedAge) {
+    lines.push(`Età verificata: ${order.ageVerification.verifiedAge}`);
+  }
+
+  lines.push(separator);
+  lines.push("Documento generato automaticamente dal pannello admin.");
+
+  return lines.join("\n");
 }
 
 async function sendOrderConfirmationEmail(order) {
@@ -989,6 +1056,31 @@ app.get("/api/admin/orders", requireAdminApi, async (req, res) => {
   } catch (error) {
     console.error("Errore caricamento ordini:", error);
     res.status(500).json({ message: "Errore nel caricamento ordini" });
+  }
+});
+
+app.get("/api/admin/orders/:id/invoice", requireAdminApi, async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    const orders = await readOrders();
+    const order = orders.find((item) => Number(item.id) === orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: "Ordine non trovato" });
+    }
+
+    const invoiceText = buildInvoiceText(order);
+
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="fattura-ordine-${order.id}.txt"`
+    );
+
+    return res.send(invoiceText);
+  } catch (error) {
+    console.error("Errore generazione fattura TXT:", error);
+    return res.status(500).json({ message: "Errore generazione fattura" });
   }
 });
 

@@ -144,7 +144,6 @@ async function adminFetch(url, options = {}) {
   });
 
   let data = null;
-
   const contentType = response.headers.get("content-type") || "";
 
   if (contentType.includes("application/json")) {
@@ -169,7 +168,7 @@ async function checkAdminSession() {
       window.location.href = "admin-login.html";
     }
   } catch (error) {
-    console.error("Errore controllo sessione:", error);
+    console.error("Errore controllo sessione admin:", error);
     window.location.href = "admin-login.html";
   }
 }
@@ -299,6 +298,12 @@ function renderOrders() {
               : ""
           }
 
+          ${
+            order.shippingNote
+              ? `<div class="admin-meta" style="margin-bottom:12px;"><strong>Nota spedizione:</strong> ${escapeHtml(order.shippingNote)}</div>`
+              : ""
+          }
+
           <div class="order-items">
             ${itemsHtml}
           </div>
@@ -308,10 +313,23 @@ function renderOrders() {
               Subtotale: <strong>${formatPrice(order.subtotal || 0)}</strong><br />
               Sconto: <strong>${formatPrice(order.discount || 0)}</strong><br />
               Totale: <strong>${formatPrice(order.total || 0)}</strong><br />
-              Coupon: <strong>${escapeHtml(order.coupon?.code || "-")}</strong>
+              Coupon: <strong>${escapeHtml(order.coupon?.code || "-")}</strong><br />
+              Pagamento: <strong>${escapeHtml(order.payment?.method || "-")}</strong><br />
+              ${
+                order.ageVerification?.verifiedAge
+                  ? `Età verificata: <strong>${escapeHtml(order.ageVerification.verifiedAge)}</strong><br />`
+                  : ""
+              }
             </div>
 
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <button
+                class="btn-outline"
+                onclick="downloadInvoice(${Number(order.id)})"
+              >
+                Scarica fattura TXT
+              </button>
+
               <select
                 class="inline-select"
                 onchange="updateOrderStatus(${Number(order.id)}, this.value)"
@@ -432,7 +450,7 @@ async function handleProductSubmit(event) {
   }
 }
 
-async function editProduct(productId) {
+function editProduct(productId) {
   const product = products.find((item) => Number(item.id) === Number(productId));
   if (!product) return;
 
@@ -492,6 +510,10 @@ async function updateOrderStatus(orderId, status) {
   }
 }
 
+function downloadInvoice(orderId) {
+  window.location.href = `/api/admin/orders/${orderId}/invoice`;
+}
+
 async function handleLogout() {
   try {
     const { response } = await adminFetch("/api/admin/logout", {
@@ -545,6 +567,7 @@ if (exportOrdersBtn) {
 window.editProduct = editProduct;
 window.deleteProduct = deleteProduct;
 window.updateOrderStatus = updateOrderStatus;
+window.downloadInvoice = downloadInvoice;
 
 async function initAdminDashboard() {
   await checkAdminSession();
