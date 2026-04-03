@@ -28,11 +28,11 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
 const DEMO_AGE_VERIFICATION =
   String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
 
-const MAIL_FROM = process.env.MAIL_FROM || "no-reply@example.com";
-const SMTP_HOST = process.env.SMTP_HOST || "";
-const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
+const MAIL_FROM = process.env.MAIL_FROM || "maicholmanzi@gmail.com";
+const SMTP_HOST = process.env.SMTP_HOST || "smtp-relay.brevo.com";
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_USER = process.env.SMTP_USER || "a70dad001@smtp-brevo.com";
+const SMTP_PASS = process.env.SMTP_PASS || "bskUjT8faW2ThH7";
 
 const COUPONS = [
   { code: "SHOP10", type: "percent", value: 10 },
