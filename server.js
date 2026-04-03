@@ -19,6 +19,7 @@ const productsPath = path.join(storageRoot, "products.json");
 const dataDir = path.join(storageRoot, "data");
 const ordersPath = path.join(dataDir, "orders.json");
 const usersPath = path.join(dataDir, "users.json");
+const notificationsPath = path.join(dataDir, "notifications.json");
 const imagesDir = path.join(storageRoot, "images");
 const uploadDir = path.join(imagesDir, "uploads");
 
@@ -120,6 +121,12 @@ async function ensureProjectFiles() {
   } catch {
     await fs.writeFile(usersPath, "[]");
   }
+
+  try {
+    await fs.access(notificationsPath);
+  } catch {
+    await fs.writeFile(notificationsPath, "[]");
+  }
 }
 
 async function readProducts() {
@@ -147,6 +154,15 @@ async function readUsers() {
 
 async function writeUsers(users) {
   await fs.writeFile(usersPath, JSON.stringify(users, null, 2));
+}
+
+async function readNotifications() {
+  const data = await fs.readFile(notificationsPath, "utf-8");
+  return JSON.parse(data);
+}
+
+async function writeNotifications(notifications) {
+  await fs.writeFile(notificationsPath, JSON.stringify(notifications, null, 2));
 }
 
 function sanitizeUser(user) {
@@ -180,6 +196,14 @@ function requireAdminApi(req, res, next) {
 
 function requireUserApi(req, res, next) {
   if (req.session && req.session.userId) {
+    return next();
+  }
+
+  return res.status(401).json({ message: "Non autenticato" });
+}
+
+function requireAnyAuthenticated(req, res, next) {
+  if (req.session?.isAdmin || req.session?.userId) {
     return next();
   }
 
@@ -459,6 +483,64 @@ function buildInvoiceText(order) {
   return lines.join("\n");
 }
 
+async function createNotification({
+  scope,
+  userId = null,
+  title,
+  message,
+  link = "",
+  type = "generic"
+}) {
+  const notifications = await readNotifications();
+
+  const newNotification = {
+    id: uuidv4(),
+    scope,
+    userId,
+    title,
+    message,
+    link,
+    type,
+    isRead: false,
+    createdAt: new Date().toISOString()
+  };
+
+  notifications.unshift(newNotification);
+
+  const trimmedNotifications = notifications.slice(0, 1000);
+  await writeNotifications(trimmedNotifications);
+
+  return newNotification;
+}
+
+function getVisibleNotificationsForSession(req, notifications) {
+  if (req.session?.isAdmin) {
+    return notifications.filter((item) => item.scope === "admin");
+  }
+
+  if (req.session?.userId) {
+    return notifications.filter(
+      (item) => item.scope === "user" && item.userId === req.session.userId
+    );
+  }
+
+  return [];
+}
+
+function canAccessNotification(req, notification) {
+  if (!notification) return false;
+
+  if (req.session?.isAdmin) {
+    return notification.scope === "admin";
+  }
+
+  if (req.session?.userId) {
+    return notification.scope === "user" && notification.userId === req.session.userId;
+  }
+
+  return false;
+}
+
 async function sendOrderConfirmationEmail(order) {
   const transporter = createMailTransporter();
 
@@ -579,6 +661,23 @@ app.post("/api/auth/register", async (req, res) => {
     req.session.userId = newUser.id;
     req.session.userEmail = newUser.email;
     req.session.userName = newUser.name;
+
+    await createNotification({
+      scope: "admin",
+      title: "Nuovo utente registrato",
+      message: `Si è registrato un nuovo utente: ${newUser.email}`,
+      link: "/admin.html",
+      type: "user"
+    });
+
+    await createNotification({
+      scope: "user",
+      userId: newUser.id,
+      title: "Account creato",
+      message: "Il tuo account è stato creato con successo.",
+      link: "/account.html",
+      type: "account"
+    });
 
     res.status(201).json({
       message: "Registrazione completata",
@@ -740,6 +839,25 @@ app.post("/api/auth/orders/:id/cancel", requireUserApi, async (req, res) => {
 
     await writeOrders(orders);
 
+    await createNotification({
+      scope: "admin",
+      title: "Ordine annullato",
+      message: `L'ordine #${orders[index].id} è stato annullato dall'utente.`,
+      link: "/admin.html",
+      type: "order"
+    });
+
+    if (orders[index].userId) {
+      await createNotification({
+        scope: "user",
+        userId: orders[index].userId,
+        title: "Ordine annullato",
+        message: `Hai annullato correttamente l'ordine #${orders[index].id}.`,
+        link: "/account.html",
+        type: "order"
+      });
+    }
+
     return res.json({
       message: "Ordine annullato con successo",
       order: orders[index]
@@ -766,6 +884,106 @@ app.post("/api/auth/logout", (req, res) => {
 
     return res.json({ message: "Logout completato" });
   });
+});
+
+/* =========================
+   NOTIFICHE
+========================= */
+
+app.get("/api/notifications", requireAnyAuthenticated, async (req, res) => {
+  try {
+    const notifications = await readNotifications();
+    const visibleNotifications = getVisibleNotificationsForSession(req, notifications)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const unreadCount = visibleNotifications.filter((item) => !item.isRead).length;
+
+    res.json({
+      notifications: visibleNotifications,
+      unreadCount
+    });
+  } catch (error) {
+    console.error("Errore caricamento notifiche:", error);
+    res.status(500).json({ message: "Errore nel caricamento notifiche" });
+  }
+});
+
+app.post("/api/notifications/:id/read", requireAnyAuthenticated, async (req, res) => {
+  try {
+    const notifications = await readNotifications();
+    const index = notifications.findIndex((item) => item.id === req.params.id);
+
+    if (index === -1) {
+      return res.status(404).json({ message: "Notifica non trovata" });
+    }
+
+    if (!canAccessNotification(req, notifications[index])) {
+      return res.status(403).json({ message: "Notifica non accessibile" });
+    }
+
+    notifications[index].isRead = true;
+    await writeNotifications(notifications);
+
+    res.json({
+      message: "Notifica letta",
+      notification: notifications[index]
+    });
+  } catch (error) {
+    console.error("Errore lettura notifica:", error);
+    res.status(500).json({ message: "Errore lettura notifica" });
+  }
+});
+
+app.post("/api/notifications/read-all", requireAnyAuthenticated, async (req, res) => {
+  try {
+    const notifications = await readNotifications();
+    let updatedCount = 0;
+
+    const updatedNotifications = notifications.map((item) => {
+      if (canAccessNotification(req, item) && !item.isRead) {
+        updatedCount += 1;
+        return {
+          ...item,
+          isRead: true
+        };
+      }
+
+      return item;
+    });
+
+    await writeNotifications(updatedNotifications);
+
+    res.json({
+      message: "Notifiche aggiornate",
+      updatedCount
+    });
+  } catch (error) {
+    console.error("Errore lettura notifiche:", error);
+    res.status(500).json({ message: "Errore lettura notifiche" });
+  }
+});
+
+app.delete("/api/notifications/:id", requireAnyAuthenticated, async (req, res) => {
+  try {
+    const notifications = await readNotifications();
+    const notification = notifications.find((item) => item.id === req.params.id);
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notifica non trovata" });
+    }
+
+    if (!canAccessNotification(req, notification)) {
+      return res.status(403).json({ message: "Notifica non accessibile" });
+    }
+
+    const filteredNotifications = notifications.filter((item) => item.id !== req.params.id);
+    await writeNotifications(filteredNotifications);
+
+    res.json({ message: "Notifica eliminata" });
+  } catch (error) {
+    console.error("Errore eliminazione notifica:", error);
+    res.status(500).json({ message: "Errore eliminazione notifica" });
+  }
 });
 
 /* =========================
@@ -939,6 +1157,25 @@ app.post("/api/orders", async (req, res) => {
 
     orders.push(newOrder);
     await writeOrders(orders);
+
+    await createNotification({
+      scope: "admin",
+      title: "Nuovo ordine ricevuto",
+      message: `È arrivato un nuovo ordine #${newOrder.id}.`,
+      link: "/admin.html",
+      type: "order"
+    });
+
+    if (newOrder.userId) {
+      await createNotification({
+        scope: "user",
+        userId: newOrder.userId,
+        title: "Ordine confermato",
+        message: `Il tuo ordine #${newOrder.id} è stato registrato correttamente.`,
+        link: "/account.html",
+        type: "order"
+      });
+    }
 
     try {
       await sendOrderConfirmationEmail(newOrder);
@@ -1238,6 +1475,17 @@ app.put("/api/admin/orders/:id/status", requireAdminApi, async (req, res) => {
     }
 
     await writeOrders(orders);
+
+    if (orders[index].userId) {
+      await createNotification({
+        scope: "user",
+        userId: orders[index].userId,
+        title: "Stato ordine aggiornato",
+        message: `Il tuo ordine #${orders[index].id} è ora in stato "${status}".`,
+        link: "/account.html",
+        type: "order"
+      });
+    }
 
     res.json({
       message: "Stato ordine aggiornato con successo",
