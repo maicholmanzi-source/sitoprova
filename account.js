@@ -8,6 +8,13 @@ const statusBox = document.getElementById("account-status");
 const logoutBtn = document.getElementById("account-logout-btn");
 const ordersBox = document.getElementById("account-orders");
 
+const notificationBadge = document.getElementById("account-notification-badge");
+const notificationList = document.getElementById("account-notification-list");
+const readAllBtn = document.getElementById("account-read-all-btn");
+
+let notifications = [];
+let notificationsPollingId = null;
+
 function showStatus(message, type = "error") {
   if (!statusBox) return;
   statusBox.textContent = message;
@@ -42,6 +49,14 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function updateNotificationBadge(unreadCount) {
+  if (!notificationBadge) return;
+
+  const count = Number(unreadCount || 0);
+  notificationBadge.textContent = String(count);
+  notificationBadge.style.display = count > 0 ? "inline-flex" : "none";
+}
+
 function renderOrders(orders = []) {
   if (!ordersBox) return;
 
@@ -63,7 +78,7 @@ function renderOrders(orders = []) {
 
       ${(order.status || "nuovo") === "nuovo"
         ? `
-          <div style="margin-top:12px;">
+          <div class="card-actions">
             <button class="btn-outline" onclick="cancelUserOrder(${Number(order.id)})">
               Annulla ordine
             </button>
@@ -71,6 +86,47 @@ function renderOrders(orders = []) {
         `
         : ""
       }
+    </article>
+  `).join("");
+}
+
+function renderNotifications() {
+  if (!notificationList) return;
+
+  updateNotificationBadge(
+    notifications.filter((item) => !item.isRead).length
+  );
+
+  if (!notifications.length) {
+    notificationList.innerHTML = `<div class="empty-box">Non hai notifiche.</div>`;
+    return;
+  }
+
+  notificationList.innerHTML = notifications.map((notification) => `
+    <article class="notification-card ${notification.isRead ? "" : "unread"}">
+      <strong>${escapeHtml(notification.title || "Notifica")}</strong>
+      <div class="notification-meta">
+        ${escapeHtml(notification.message || "")}<br />
+        Data: ${formatDate(notification.createdAt)}
+      </div>
+
+      <div class="card-actions">
+        ${
+          notification.link
+            ? `<button class="btn-secondary" onclick="openNotification('${escapeHtml(notification.id)}', '${escapeHtml(notification.link)}')">Apri</button>`
+            : ""
+        }
+
+        ${
+          notification.isRead
+            ? ""
+            : `<button class="btn-outline" onclick="markNotificationAsRead('${escapeHtml(notification.id)}')">Segna come letta</button>`
+        }
+
+        <button class="btn-outline" onclick="deleteNotification('${escapeHtml(notification.id)}')">
+          Elimina
+        </button>
+      </div>
     </article>
   `).join("");
 }
@@ -122,6 +178,103 @@ async function loadOrders() {
   }
 }
 
+async function loadNotifications() {
+  try {
+    const response = await fetch("/api/notifications", {
+      credentials: "include"
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      renderNotifications([]);
+      return;
+    }
+
+    notifications = Array.isArray(data.notifications) ? data.notifications : [];
+    renderNotifications();
+
+    if (typeof data.unreadCount !== "undefined") {
+      updateNotificationBadge(data.unreadCount);
+    }
+  } catch (error) {
+    console.error("Errore caricamento notifiche account:", error);
+    if (notificationList) {
+      notificationList.innerHTML = `<div class="empty-box">Errore nel caricamento notifiche.</div>`;
+    }
+  }
+}
+
+async function markNotificationAsRead(notificationId) {
+  try {
+    const response = await fetch(`/api/notifications/${notificationId}/read`, {
+      method: "POST",
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Impossibile segnare la notifica come letta.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore lettura notifica:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    const response = await fetch("/api/notifications/read-all", {
+      method: "POST",
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Impossibile aggiornare le notifiche.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore lettura notifiche:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function deleteNotification(notificationId) {
+  try {
+    const response = await fetch(`/api/notifications/${notificationId}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Impossibile eliminare la notifica.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore eliminazione notifica:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function openNotification(notificationId, link) {
+  await markNotificationAsRead(notificationId);
+
+  if (link) {
+    window.location.href = link;
+  }
+}
+
 async function cancelUserOrder(orderId) {
   const confirmed = window.confirm(
     "Vuoi davvero annullare questo ordine? Puoi farlo solo finché è in stato nuovo."
@@ -143,7 +296,7 @@ async function cancelUserOrder(orderId) {
     }
 
     alert("Ordine annullato con successo.");
-    await loadOrders();
+    await Promise.all([loadOrders(), loadNotifications()]);
   } catch (error) {
     console.error("Errore annullamento ordine:", error);
     alert("Errore di connessione al server.");
@@ -211,7 +364,23 @@ if (logoutBtn) {
   logoutBtn.addEventListener("click", handleLogout);
 }
 
-window.cancelUserOrder = cancelUserOrder;
+if (readAllBtn) {
+  readAllBtn.addEventListener("click", markAllNotificationsAsRead);
+}
 
-loadMe();
-loadOrders();
+window.cancelUserOrder = cancelUserOrder;
+window.markNotificationAsRead = markNotificationAsRead;
+window.deleteNotification = deleteNotification;
+window.openNotification = openNotification;
+
+async function initAccountPage() {
+  await Promise.all([loadMe(), loadOrders(), loadNotifications()]);
+
+  if (notificationsPollingId) {
+    clearInterval(notificationsPollingId);
+  }
+
+  notificationsPollingId = setInterval(loadNotifications, 25000);
+}
+
+initAccountPage();
