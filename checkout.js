@@ -1,4 +1,5 @@
 const cart = JSON.parse(localStorage.getItem("cart")) || [];
+let currentUser = null;
 
 const summary = document.getElementById("order-summary");
 const subtotalEl = document.getElementById("order-subtotal");
@@ -31,6 +32,8 @@ const emailField = document.getElementById("email");
 const addressField = document.getElementById("address");
 const cityField = document.getElementById("city");
 const notesField = document.getElementById("notes");
+
+const headerAuthArea = document.getElementById("checkout-header-auth-area");
 
 const AGE_RESTRICTED_CATEGORIES = ["vino", "alcol", "alcolici"];
 const SHIPPING_LEGAL_NOTE =
@@ -422,7 +425,9 @@ function getPaymentLabel(method) {
 
 async function prefillCheckoutFromAccount() {
   try {
-    const response = await fetch("/api/auth/me");
+    const response = await fetch("/api/auth/me", {
+      credentials: "include"
+    });
     const data = await response.json();
 
     if (!data.authenticated || !data.user) return;
@@ -435,6 +440,65 @@ async function prefillCheckoutFromAccount() {
     if (cityField && !cityField.value) cityField.value = user.city || "";
   } catch (error) {
     console.error("Errore prefill checkout:", error);
+  }
+}
+
+async function loadAuthState() {
+  try {
+    const response = await fetch("/api/auth/me", {
+      credentials: "include"
+    });
+
+    const data = await response.json();
+    currentUser = data?.authenticated ? data.user : null;
+    renderHeaderAuth();
+  } catch (error) {
+    console.error("Errore controllo sessione utente:", error);
+    currentUser = null;
+    renderHeaderAuth();
+  }
+}
+
+function renderHeaderAuth() {
+  if (!headerAuthArea) return;
+
+  if (!currentUser) {
+    headerAuthArea.innerHTML = `
+      <a href="login.html" class="header-link-btn">Accedi</a>
+      <a href="register.html" class="header-link-btn primary">Registrati</a>
+    `;
+    return;
+  }
+
+  headerAuthArea.innerHTML = `
+    <span class="header-user-greeting">Ciao, ${escapeHtml(currentUser.name || "Utente")}</span>
+    <a href="account.html" class="header-link-btn">Account</a>
+    <button id="checkout-header-logout-btn" class="header-link-btn">Logout</button>
+  `;
+
+  const logoutBtn = document.getElementById("checkout-header-logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", handleUserLogout);
+  }
+}
+
+async function handleUserLogout() {
+  try {
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      throw new Error("Logout non riuscito");
+    }
+
+    currentUser = null;
+    renderHeaderAuth();
+    window.location.href = "index.html";
+  } catch (error) {
+    console.error("Errore logout utente:", error);
+    alert("Errore durante il logout.");
   }
 }
 
@@ -491,6 +555,7 @@ async function submitOrder(event) {
       headers: {
         "Content-Type": "application/json"
       },
+      credentials: "include",
       body: JSON.stringify(payload)
     });
 
@@ -579,3 +644,4 @@ togglePaymentFields();
 renderSummary();
 updateAgeCheckVisibility();
 prefillCheckoutFromAccount();
+loadAuthState();

@@ -5,6 +5,399 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Prodotto - UrbanVibe</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
+    .header {
+      background: #0f172a;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .header nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .header nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .header nav a:hover {
+      opacity: 0.9;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .header-auth-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .header-user-greeting {
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .header-link-btn {
+      background: white;
+      color: #111827;
+      border: 1px solid #d1d5db;
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-link-btn:hover {
+      background: #f9fafb;
+    }
+
+    .header-link-btn.primary {
+      background: #ff6b00;
+      color: white;
+      border-color: #ff6b00;
+    }
+
+    .header-link-btn.primary:hover {
+      filter: brightness(0.96);
+    }
+
+    .cart-btn {
+      background: #ff6b00;
+      border: none;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(255, 107, 0, 0.2);
+    }
+
+    .cart-btn:hover {
+      filter: brightness(0.96);
+    }
+
+    .product-page {
+      max-width: 1240px;
+      margin: 34px auto 40px;
+      padding: 0 20px 40px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      color: #111827;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .back-link:hover {
+      opacity: 0.85;
+    }
+
+    .product-detail-card {
+      background: white;
+      border-radius: 24px;
+      padding: 30px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .product-detail-image-box {
+      background: #f3f4f6;
+      border-radius: 20px;
+      overflow: hidden;
+      min-height: 460px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .product-detail-image {
+      width: 100%;
+      height: 100%;
+      min-height: 460px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .product-detail-image-fallback {
+      width: 100%;
+      min-height: 460px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 72px;
+      background: #e5e7eb;
+    }
+
+    .product-detail-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .product-tag {
+      display: inline-block;
+      width: fit-content;
+      background: #fff7ed;
+      color: #ea580c;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .product-detail-info h1 {
+      font-size: 42px;
+      margin-bottom: 16px;
+      color: #111827;
+      line-height: 1.1;
+    }
+
+    .product-detail-description {
+      font-size: 18px;
+      line-height: 1.7;
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+
+    .product-detail-price {
+      font-size: 34px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 24px;
+    }
+
+    .product-detail-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .big-btn {
+      min-width: 190px;
+      text-align: center;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-outline {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-primary {
+      background: #ff6b00;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(0.96);
+    }
+
+    .btn-secondary {
+      background: #0f172a;
+      color: white;
+    }
+
+    .btn-outline {
+      background: white;
+      color: #111827;
+      border: 1px solid #d1d5db;
+    }
+
+    .btn-outline:hover {
+      background: #f9fafb;
+    }
+
+    .cart-sidebar {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 380px;
+      max-width: 100%;
+      height: 100vh;
+      background: white;
+      box-shadow: -10px 0 30px rgba(15, 23, 42, 0.15);
+      padding: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cart-sidebar.hidden {
+      display: none;
+    }
+
+    .cart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .cart-header h2 {
+      color: #0f172a;
+      font-size: 28px;
+      margin: 0;
+    }
+
+    #close-product-cart {
+      border: none;
+      background: transparent;
+      font-size: 22px;
+      cursor: pointer;
+    }
+
+    .cart-items {
+      flex: 1;
+      overflow-y: auto;
+      display: grid;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .cart-item {
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .cart-item-info {
+      flex: 1;
+    }
+
+    .cart-item-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #111827;
+    }
+
+    .cart-item-meta {
+      font-size: 14px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .cart-item-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .cart-remove-btn {
+      border: none;
+      background: transparent;
+      color: #b91c1c;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .cart-footer {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .empty-message {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      color: #64748b;
+    }
+
+    @media (max-width: 900px) {
+      .header {
+        gap: 12px;
+        padding: 16px 20px;
+      }
+
+      .header-right {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .product-detail-card {
+        grid-template-columns: 1fr;
+      }
+
+      .product-detail-image,
+      .product-detail-image-box,
+      .product-detail-image-fallback {
+        min-height: 320px;
+      }
+
+      .product-detail-info h1 {
+        font-size: 32px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .product-page {
+        padding: 0 16px 30px;
+      }
+
+      .product-detail-card {
+        padding: 22px;
+      }
+    }
+  </style>
 </head>
 <body>
   <header class="header">
@@ -16,15 +409,34 @@
       <a href="checkout.html">Checkout</a>
     </nav>
 
-    <button id="product-cart-btn" class="cart-btn">
-      🛒 Carrello (<span id="product-cart-count">0</span>)
-    </button>
+    <div class="header-right">
+      <div id="product-header-auth-area" class="header-auth-area"></div>
+
+      <button id="product-cart-btn" class="cart-btn">
+        🛒 Carrello (<span id="product-cart-count">0</span>)
+      </button>
+    </div>
   </header>
 
   <main class="product-page">
     <a href="index.html" class="back-link">← Torna al negozio</a>
     <section id="product-detail"></section>
   </main>
+
+  <aside id="product-cart-sidebar" class="cart-sidebar hidden">
+    <div class="cart-header">
+      <h2>Carrello</h2>
+      <button id="close-product-cart">✖</button>
+    </div>
+
+    <div id="product-cart-items" class="cart-items"></div>
+
+    <div class="cart-footer">
+      <p><strong>Totale: € <span id="product-cart-total">0.00</span></strong></p>
+      <button id="clear-product-cart" class="btn-secondary">Svuota carrello</button>
+      <a href="checkout.html" class="btn-primary">Checkout</a>
+    </div>
+  </aside>
 
   <script src="product.js"></script>
 </body>

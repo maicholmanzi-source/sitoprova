@@ -6,26 +6,97 @@
   <title>Checkout - UrbanVibe</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    .shipping-legal-note-box {
-  display: none;
-  margin-top: 8px;
-  padding: 16px 18px;
-  border: 1px solid #fecaca;
-  border-radius: 16px;
-  background: #fff1f2;
-}
+    body {
+      background: #f8fafc;
+      color: #0f172a;
+    }
 
-.shipping-legal-note-box strong {
-  display: block;
-  margin-bottom: 8px;
-  color: #9f1239;
-}
+    .header {
+      background: #0f172a;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    }
 
-.shipping-legal-note-box p {
-  color: #881337;
-  line-height: 1.6;
-  font-weight: 600;
-}
+    .logo {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .header nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .header nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .header nav a:hover {
+      opacity: 0.9;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .header-auth-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .header-user-greeting {
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .header-link-btn {
+      background: white;
+      color: #111827;
+      border: 1px solid #d1d5db;
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-link-btn:hover {
+      background: #f9fafb;
+    }
+
+    .header-link-btn.primary {
+      background: #ff6b00;
+      color: white;
+      border-color: #ff6b00;
+    }
+
+    .header-link-btn.primary:hover {
+      filter: brightness(0.96);
+    }
+
     .checkout-container {
       max-width: 1100px;
       margin: 40px auto;
@@ -165,6 +236,27 @@
       font-weight: 700;
     }
 
+    .shipping-legal-note-box {
+      display: none;
+      margin-top: 8px;
+      padding: 16px 18px;
+      border: 1px solid #fecaca;
+      border-radius: 16px;
+      background: #fff1f2;
+    }
+
+    .shipping-legal-note-box strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #9f1239;
+    }
+
+    .shipping-legal-note-box p {
+      color: #881337;
+      line-height: 1.6;
+      font-weight: 600;
+    }
+
     .order-summary-list {
       display: flex;
       flex-direction: column;
@@ -280,27 +372,6 @@
       line-height: 1.5;
     }
 
-    .top-bar {
-      background: #0f172a;
-      color: white;
-      padding: 20px 40px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
-    .top-bar strong {
-      font-size: 20px;
-    }
-
-    .top-bar a {
-      color: white;
-      text-decoration: none;
-      font-weight: 600;
-    }
-
     .section-badge {
       display: inline-block;
       margin-bottom: 12px;
@@ -313,6 +384,16 @@
     }
 
     @media (max-width: 900px) {
+      .header {
+        gap: 12px;
+        padding: 16px 20px;
+      }
+
+      .header-right {
+        width: 100%;
+        justify-content: space-between;
+      }
+
       .checkout-container {
         grid-template-columns: 1fr;
       }
@@ -321,10 +402,6 @@
     @media (max-width: 640px) {
       .checkout-grid-2 {
         grid-template-columns: 1fr;
-      }
-
-      .top-bar {
-        padding: 18px 20px;
       }
 
       .checkout-container {
@@ -339,9 +416,18 @@
   </style>
 </head>
 <body>
-  <header class="top-bar">
-    <div><strong>UrbanVibe</strong></div>
-    <a href="index.html">← Torna al negozio</a>
+  <header class="header">
+    <div class="logo">UrbanVibe</div>
+
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="index.html#prodotti">Prodotti</a>
+      <a href="account.html">Account</a>
+    </nav>
+
+    <div class="header-right">
+      <div id="checkout-header-auth-area" class="header-auth-area"></div>
+    </div>
   </header>
 
   <main class="checkout-container">
@@ -442,10 +528,12 @@
             <p id="age-check-message" class="age-check-message"></p>
           </div>
         </div>
-<div id="shipping-legal-note-box" class="shipping-legal-note-box">
-  <strong>Nota di spedizione automatica</strong>
-  <p id="shipping-legal-note-text"></p>
-</div>
+
+        <div id="shipping-legal-note-box" class="shipping-legal-note-box">
+          <strong>Nota di spedizione automatica</strong>
+          <p id="shipping-legal-note-text"></p>
+        </div>
+
         <button type="submit" class="btn-primary">Conferma ordine</button>
       </form>
     </section>
