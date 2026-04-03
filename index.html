@@ -97,6 +97,33 @@
       filter: brightness(0.96);
     }
 
+    .notification-pill {
+      position: relative;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      color: #111827;
+      border: 1px solid #d1d5db;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+
+    .notification-badge {
+      display: none;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #ef4444;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      align-items: center;
+      justify-content: center;
+    }
+
     .cart-btn {
       background: #ff6b00;
       color: white;
@@ -150,6 +177,70 @@
       font-size: 34px;
       margin-bottom: 18px;
       color: #0f172a;
+    }
+
+    .home-notifications-box {
+      display: none;
+      background: white;
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      margin-bottom: 26px;
+    }
+
+    .home-notifications-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .home-notifications-head h2 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .home-notifications-head p {
+      margin: 0;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+
+    .notifications-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .notification-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .notification-card.unread {
+      border-color: #bae6fd;
+      background: #f0f9ff;
+    }
+
+    .notification-card strong {
+      color: #0f172a;
+    }
+
+    .notification-meta {
+      color: #6b7280;
+      line-height: 1.6;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
     }
 
     .filters-bar {
@@ -359,11 +450,60 @@
       margin-bottom: 18px;
     }
 
+    .cart-item {
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .cart-item-info {
+      flex: 1;
+    }
+
+    .cart-item-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #111827;
+    }
+
+    .cart-item-meta {
+      font-size: 14px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .cart-item-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .cart-remove-btn {
+      border: none;
+      background: transparent;
+      color: #b91c1c;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
     .cart-footer {
       border-top: 1px solid #e5e7eb;
       padding-top: 16px;
       display: grid;
       gap: 12px;
+    }
+
+    .empty-message {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      color: #64748b;
     }
 
     @media (max-width: 1100px) {
@@ -419,6 +559,11 @@
     <div class="header-right">
       <div id="header-auth-area" class="header-auth-area"></div>
 
+      <div id="home-notification-pill" class="notification-pill">
+        <span>Notifiche</span>
+        <span id="home-notification-badge" class="notification-badge">0</span>
+      </div>
+
       <button id="cart-btn" class="cart-btn">
         🛒 Carrello (<span id="cart-count">0</span>)
       </button>
@@ -437,6 +582,19 @@
   </section>
 
   <main class="container">
+    <section id="home-notifications-box" class="home-notifications-box">
+      <div class="home-notifications-head">
+        <div>
+          <h2>Le tue notifiche</h2>
+          <p>Qui trovi aggiornamenti su ordini e attività del tuo account.</p>
+        </div>
+
+        <button id="home-read-all-btn" class="btn-outline">Segna tutte lette</button>
+      </div>
+
+      <div id="home-notification-list" class="notifications-list"></div>
+    </section>
+
     <section id="prodotti">
       <h2>I nostri prodotti</h2>
 

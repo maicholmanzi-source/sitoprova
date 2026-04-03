@@ -2,6 +2,8 @@ let products = [];
 let filteredProducts = [];
 let cart = JSON.parse(localStorage.getItem("cart")) || [];
 let currentUser = null;
+let notifications = [];
+let notificationsPollingId = null;
 
 const productList = document.getElementById("product-list");
 const cartBtn = document.getElementById("cart-btn");
@@ -18,8 +20,26 @@ const categoryFilter = document.getElementById("category-filter");
 const sortFilter = document.getElementById("sort-filter");
 const headerAuthArea = document.getElementById("header-auth-area");
 
+const homeNotificationPill = document.getElementById("home-notification-pill");
+const homeNotificationBadge = document.getElementById("home-notification-badge");
+const homeNotificationsBox = document.getElementById("home-notifications-box");
+const homeNotificationList = document.getElementById("home-notification-list");
+const homeReadAllBtn = document.getElementById("home-read-all-btn");
+
 function formatPrice(value) {
   return Number(value || 0).toFixed(2);
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("it-IT", {
+    dateStyle: "short",
+    timeStyle: "short"
+  });
 }
 
 function escapeHtml(value) {
@@ -247,6 +267,67 @@ function renderProducts() {
     .join("");
 }
 
+function updateNotificationBadge(unreadCount) {
+  if (!homeNotificationBadge) return;
+
+  const count = Number(unreadCount || 0);
+  homeNotificationBadge.textContent = String(count);
+  homeNotificationBadge.style.display = count > 0 ? "inline-flex" : "none";
+}
+
+function renderNotifications() {
+  if (!homeNotificationList) return;
+
+  updateNotificationBadge(
+    notifications.filter((item) => !item.isRead).length
+  );
+
+  if (!notifications.length) {
+    homeNotificationList.innerHTML = `<div class="empty-message">Non hai notifiche.</div>`;
+    return;
+  }
+
+  homeNotificationList.innerHTML = notifications.map((notification) => `
+    <article class="notification-card ${notification.isRead ? "" : "unread"}">
+      <strong>${escapeHtml(notification.title || "Notifica")}</strong>
+      <div class="notification-meta">
+        ${escapeHtml(notification.message || "")}<br />
+        Data: ${formatDate(notification.createdAt)}
+      </div>
+
+      <div class="card-actions">
+        ${
+          notification.link
+            ? `<button class="btn-secondary" onclick="openNotification('${escapeHtml(notification.id)}', '${escapeHtml(notification.link)}')">Apri</button>`
+            : ""
+        }
+
+        ${
+          notification.isRead
+            ? ""
+            : `<button class="btn-outline" onclick="markNotificationAsRead('${escapeHtml(notification.id)}')">Segna come letta</button>`
+        }
+
+        <button class="btn-outline" onclick="deleteNotification('${escapeHtml(notification.id)}')">
+          Elimina
+        </button>
+      </div>
+    </article>
+  `).join("");
+}
+
+function updateNotificationVisibility() {
+  const isLoggedIn = Boolean(currentUser);
+
+  if (homeNotificationPill) {
+    homeNotificationPill.style.display = isLoggedIn ? "inline-flex" : "none";
+  }
+
+  if (homeNotificationsBox) {
+    homeNotificationsBox.style.display = isLoggedIn ? "block" : "none";
+  }
+}
+
 async function loadProducts() {
   try {
     const response = await fetch("/api/products");
@@ -282,10 +363,19 @@ async function loadAuthState() {
     const data = await response.json();
     currentUser = data?.authenticated ? data.user : null;
     renderHeaderAuth();
+    updateNotificationVisibility();
+
+    if (currentUser) {
+      await loadNotifications();
+    } else {
+      notifications = [];
+      renderNotifications();
+    }
   } catch (error) {
     console.error("Errore controllo sessione utente:", error);
     currentUser = null;
     renderHeaderAuth();
+    updateNotificationVisibility();
   }
 }
 
@@ -312,6 +402,107 @@ function renderHeaderAuth() {
   }
 }
 
+async function loadNotifications() {
+  if (!currentUser) return;
+
+  try {
+    const response = await fetch("/api/notifications", {
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      notifications = [];
+      renderNotifications();
+      return;
+    }
+
+    notifications = Array.isArray(data.notifications) ? data.notifications : [];
+    renderNotifications();
+
+    if (typeof data.unreadCount !== "undefined") {
+      updateNotificationBadge(data.unreadCount);
+    }
+  } catch (error) {
+    console.error("Errore caricamento notifiche home:", error);
+    if (homeNotificationList) {
+      homeNotificationList.innerHTML = `<div class="empty-message">Errore nel caricamento notifiche.</div>`;
+    }
+  }
+}
+
+async function markNotificationAsRead(notificationId) {
+  try {
+    const response = await fetch(`/api/notifications/${notificationId}/read`, {
+      method: "POST",
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Impossibile segnare la notifica come letta.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore lettura notifica:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    const response = await fetch("/api/notifications/read-all", {
+      method: "POST",
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Impossibile aggiornare le notifiche.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore lettura notifiche:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function deleteNotification(notificationId) {
+  try {
+    const response = await fetch(`/api/notifications/${notificationId}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Impossibile eliminare la notifica.");
+      return;
+    }
+
+    await loadNotifications();
+  } catch (error) {
+    console.error("Errore eliminazione notifica:", error);
+    alert("Errore di connessione al server.");
+  }
+}
+
+async function openNotification(notificationId, link) {
+  await markNotificationAsRead(notificationId);
+
+  if (link) {
+    window.location.href = link;
+  }
+}
+
 async function handleUserLogout() {
   try {
     const response = await fetch("/api/auth/logout", {
@@ -324,7 +515,16 @@ async function handleUserLogout() {
     }
 
     currentUser = null;
+    notifications = [];
     renderHeaderAuth();
+    updateNotificationVisibility();
+    renderNotifications();
+
+    if (notificationsPollingId) {
+      clearInterval(notificationsPollingId);
+      notificationsPollingId = null;
+    }
+
     window.location.href = "index.html";
   } catch (error) {
     console.error("Errore logout utente:", error);
@@ -363,9 +563,30 @@ if (sortFilter) {
   sortFilter.addEventListener("change", applyFilters);
 }
 
+if (homeReadAllBtn) {
+  homeReadAllBtn.addEventListener("click", markAllNotificationsAsRead);
+}
+
 window.addToCart = addToCart;
 window.removeFromCart = removeFromCart;
+window.markNotificationAsRead = markNotificationAsRead;
+window.deleteNotification = deleteNotification;
+window.openNotification = openNotification;
 
-renderCart();
-loadProducts();
-loadAuthState();
+async function initHomePage() {
+  renderCart();
+  await loadProducts();
+  await loadAuthState();
+
+  if (notificationsPollingId) {
+    clearInterval(notificationsPollingId);
+  }
+
+  notificationsPollingId = setInterval(() => {
+    if (currentUser) {
+      loadNotifications();
+    }
+  }, 25000);
+}
+
+initHomePage();
