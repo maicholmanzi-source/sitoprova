@@ -6,6 +6,26 @@
   <title>Checkout - UrbanVibe</title>
   <link rel="stylesheet" href="style.css" />
   <style>
+    .shipping-legal-note-box {
+  display: none;
+  margin-top: 8px;
+  padding: 16px 18px;
+  border: 1px solid #fecaca;
+  border-radius: 16px;
+  background: #fff1f2;
+}
+
+.shipping-legal-note-box strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #9f1239;
+}
+
+.shipping-legal-note-box p {
+  color: #881337;
+  line-height: 1.6;
+  font-weight: 600;
+}
     .checkout-container {
       max-width: 1100px;
       margin: 40px auto;
@@ -422,7 +442,10 @@
             <p id="age-check-message" class="age-check-message"></p>
           </div>
         </div>
-
+<div id="shipping-legal-note-box" class="shipping-legal-note-box">
+  <strong>Nota di spedizione automatica</strong>
+  <p id="shipping-legal-note-text"></p>
+</div>
         <button type="submit" class="btn-primary">Conferma ordine</button>
       </form>
     </section>

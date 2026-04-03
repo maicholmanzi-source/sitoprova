@@ -4,6 +4,8 @@ const fs = require("node:fs/promises");
 const session = require("express-session");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
+const bcrypt = require("bcryptjs");
+const { v4: uuidv4 } = require("uuid");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +18,7 @@ const storageRoot = process.env.STORAGE_DIR
 const productsPath = path.join(storageRoot, "products.json");
 const dataDir = path.join(storageRoot, "data");
 const ordersPath = path.join(dataDir, "orders.json");
+const usersPath = path.join(dataDir, "users.json");
 const imagesDir = path.join(storageRoot, "images");
 const uploadDir = path.join(imagesDir, "uploads");
 
@@ -111,6 +114,12 @@ async function ensureProjectFiles() {
   } catch {
     await fs.writeFile(ordersPath, "[]");
   }
+
+  try {
+    await fs.access(usersPath);
+  } catch {
+    await fs.writeFile(usersPath, "[]");
+  }
 }
 
 async function readProducts() {
@@ -131,6 +140,28 @@ async function writeOrders(orders) {
   await fs.writeFile(ordersPath, JSON.stringify(orders, null, 2));
 }
 
+async function readUsers() {
+  const data = await fs.readFile(usersPath, "utf-8");
+  return JSON.parse(data);
+}
+
+async function writeUsers(users) {
+  await fs.writeFile(usersPath, JSON.stringify(users, null, 2));
+}
+
+function sanitizeUser(user) {
+  if (!user) return null;
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    address: user.address || "",
+    city: user.city || "",
+    createdAt: user.createdAt
+  };
+}
+
 function requireAdminPage(req, res, next) {
   if (req.session && req.session.isAdmin) {
     return next();
@@ -145,6 +176,14 @@ function requireAdminApi(req, res, next) {
   }
 
   return res.status(401).json({ message: "Non autorizzato" });
+}
+
+function requireUserApi(req, res, next) {
+  if (req.session && req.session.userId) {
+    return next();
+  }
+
+  return res.status(401).json({ message: "Non autenticato" });
 }
 
 function uploadedImageUrl(filename) {
@@ -418,12 +457,205 @@ app.post("/api/admin/logout", (req, res) => {
     return res.json({ message: "Logout completato" });
   }
 
-  req.session.destroy((error) => {
+  req.session.isAdmin = false;
+  req.session.adminUser = null;
+
+  return req.session.save((error) => {
     if (error) {
       return res.status(500).json({ message: "Errore durante il logout" });
     }
 
-    res.clearCookie("urbanvibe.sid");
+    return res.json({ message: "Logout completato" });
+  });
+});
+
+/* =========================
+   AUTH UTENTE
+========================= */
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Compila tutti i campi" });
+    }
+
+    if (String(password).length < 6) {
+      return res.status(400).json({ message: "La password deve avere almeno 6 caratteri" });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const users = await readUsers();
+
+    const existingUser = users.find((user) => user.email === normalizedEmail);
+
+    if (existingUser) {
+      return res.status(409).json({ message: "Esiste già un account con questa email" });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const newUser = {
+      id: uuidv4(),
+      name: String(name).trim(),
+      email: normalizedEmail,
+      passwordHash,
+      address: "",
+      city: "",
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    await writeUsers(users);
+
+    req.session.userId = newUser.id;
+    req.session.userEmail = newUser.email;
+    req.session.userName = newUser.name;
+
+    res.status(201).json({
+      message: "Registrazione completata",
+      user: sanitizeUser(newUser)
+    });
+  } catch (error) {
+    console.error("Errore registrazione utente:", error);
+    res.status(500).json({ message: "Errore nella registrazione" });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Inserisci email e password" });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const users = await readUsers();
+
+    const user = users.find((item) => item.email === normalizedEmail);
+
+    if (!user) {
+      return res.status(401).json({ message: "Credenziali non valide" });
+    }
+
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isValid) {
+      return res.status(401).json({ message: "Credenziali non valide" });
+    }
+
+    req.session.userId = user.id;
+    req.session.userEmail = user.email;
+    req.session.userName = user.name;
+
+    res.json({
+      message: "Login effettuato con successo",
+      user: sanitizeUser(user)
+    });
+  } catch (error) {
+    console.error("Errore login utente:", error);
+    res.status(500).json({ message: "Errore nel login" });
+  }
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  try {
+    if (!req.session?.userId) {
+      return res.json({
+        authenticated: false,
+        user: null
+      });
+    }
+
+    const users = await readUsers();
+    const user = users.find((item) => item.id === req.session.userId);
+
+    if (!user) {
+      return res.json({
+        authenticated: false,
+        user: null
+      });
+    }
+
+    res.json({
+      authenticated: true,
+      user: sanitizeUser(user)
+    });
+  } catch (error) {
+    console.error("Errore sessione utente:", error);
+    res.status(500).json({ message: "Errore nel recupero sessione utente" });
+  }
+});
+
+app.put("/api/auth/profile", requireUserApi, async (req, res) => {
+  try {
+    const { name, address, city } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ message: "Il nome è obbligatorio" });
+    }
+
+    const users = await readUsers();
+    const index = users.findIndex((item) => item.id === req.session.userId);
+
+    if (index === -1) {
+      return res.status(404).json({ message: "Utente non trovato" });
+    }
+
+    users[index] = {
+      ...users[index],
+      name: String(name).trim(),
+      address: String(address || "").trim(),
+      city: String(city || "").trim()
+    };
+
+    await writeUsers(users);
+
+    req.session.userName = users[index].name;
+
+    res.json({
+      message: "Profilo aggiornato con successo",
+      user: sanitizeUser(users[index])
+    });
+  } catch (error) {
+    console.error("Errore aggiornamento profilo utente:", error);
+    res.status(500).json({ message: "Errore aggiornamento profilo" });
+  }
+});
+
+app.get("/api/auth/orders", requireUserApi, async (req, res) => {
+  try {
+    const orders = await readOrders();
+    const userOrders = orders
+      .filter((order) => {
+        return String(order.customer?.email || "").toLowerCase() ===
+          String(req.session.userEmail || "").toLowerCase();
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json({ orders: userOrders });
+  } catch (error) {
+    console.error("Errore caricamento ordini utente:", error);
+    res.status(500).json({ message: "Errore nel caricamento ordini utente" });
+  }
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  if (!req.session) {
+    return res.json({ message: "Logout completato" });
+  }
+
+  req.session.userId = null;
+  req.session.userEmail = null;
+  req.session.userName = null;
+
+  return req.session.save((error) => {
+    if (error) {
+      return res.status(500).json({ message: "Errore durante il logout" });
+    }
+
     return res.json({ message: "Logout completato" });
   });
 });
@@ -557,6 +789,7 @@ app.post("/api/orders", async (req, res) => {
       id: Date.now(),
       createdAt: new Date().toISOString(),
       status: "nuovo",
+      userId: req.session?.userId || null,
       customer: {
         name: customer.name,
         email: customer.email,
@@ -773,6 +1006,7 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         "ID Ordine",
         "Data",
         "Stato",
+        "User ID",
         "Cliente",
         "Email",
         "Indirizzo",
@@ -803,6 +1037,7 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         order.id,
         order.createdAt || "",
         order.status || "nuovo",
+        order.userId || "",
         order.customer?.name || "",
         order.customer?.email || "",
         order.customer?.address || "",

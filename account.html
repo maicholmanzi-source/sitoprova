@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Il mio account - UrbanVibe</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .account-shell {
+      max-width: 1100px;
+      margin: 32px auto;
+      padding: 0 20px 40px;
+    }
+
+    .account-topbar {
+      background: #0f172a;
+      color: white;
+      padding: 18px 24px;
+      border-radius: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .account-topbar h1 {
+      font-size: 28px;
+      margin-bottom: 4px;
+    }
+
+    .account-topbar p {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    .account-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .account-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 28px;
+    }
+
+    .account-card {
+      background: white;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .account-card h2 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      color: #0f172a;
+    }
+
+    .account-card p {
+      color: #6b7280;
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+
+    .account-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .account-form input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    .account-form input:focus {
+      border-color: #06b6d4;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    .account-status {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      display: none;
+      font-weight: 600;
+    }
+
+    .account-status.error {
+      display: block;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .account-status.success {
+      display: block;
+      background: #ecfdf5;
+      color: #065f46;
+    }
+
+    .orders-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .order-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .order-card strong {
+      color: #0f172a;
+    }
+
+    .order-meta {
+      color: #6b7280;
+      line-height: 1.6;
+      margin-top: 8px;
+    }
+
+    .empty-box {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 16px;
+      color: #64748b;
+    }
+
+    @media (max-width: 900px) {
+      .account-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="account-shell">
+    <header class="account-topbar">
+      <div>
+        <h1>Il mio account</h1>
+        <p id="account-user-line">Gestisci i tuoi dati e consulta i tuoi ordini.</p>
+      </div>
+
+      <div class="account-actions">
+        <a href="index.html" class="btn-outline">Torna al negozio</a>
+        <button id="account-logout-btn" class="btn-primary">Logout</button>
+      </div>
+    </header>
+
+    <section class="account-grid">
+      <div class="account-card">
+        <h2>Dati profilo</h2>
+        <p>Questi dati possono essere riutilizzati nel checkout.</p>
+
+        <form id="account-form" class="account-form">
+          <div>
+            <label class="field-label" for="account-name">Nome e cognome</label>
+            <input type="text" id="account-name" required />
+          </div>
+
+          <div>
+            <label class="field-label" for="account-email">Email</label>
+            <input type="email" id="account-email" disabled />
+          </div>
+
+          <div>
+            <label class="field-label" for="account-address">Indirizzo</label>
+            <input type="text" id="account-address" />
+          </div>
+
+          <div>
+            <label class="field-label" for="account-city">Città</label>
+            <input type="text" id="account-city" />
+          </div>
+
+          <button type="submit" class="btn-primary">Salva profilo</button>
+        </form>
+
+        <div id="account-status" class="account-status"></div>
+      </div>
+
+      <div class="account-card">
+        <h2>I miei ordini</h2>
+        <p>Qui trovi gli ordini associati alla tua email.</p>
+        <div id="account-orders" class="orders-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="account.js"></script>
+</body>
+</html>

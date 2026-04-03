@@ -26,6 +26,12 @@ const submitOrderBtn = form?.querySelector('button[type="submit"]');
 const shippingLegalNoteBox = document.getElementById("shipping-legal-note-box");
 const shippingLegalNoteText = document.getElementById("shipping-legal-note-text");
 
+const nameField = document.getElementById("name");
+const emailField = document.getElementById("email");
+const addressField = document.getElementById("address");
+const cityField = document.getElementById("city");
+const notesField = document.getElementById("notes");
+
 const AGE_RESTRICTED_CATEGORIES = ["vino", "alcol", "alcolici"];
 const SHIPPING_LEGAL_NOTE =
   "Consegnare solo a maggiorenni previa verifica della maggiore età.";
@@ -372,11 +378,11 @@ function updateAgeCheckVisibility() {
 
 function getCustomerData() {
   return {
-    name: document.getElementById("name")?.value.trim() || "",
-    email: document.getElementById("email")?.value.trim() || "",
-    address: document.getElementById("address")?.value.trim() || "",
-    city: document.getElementById("city")?.value.trim() || "",
-    notes: document.getElementById("notes")?.value.trim() || ""
+    name: nameField?.value.trim() || "",
+    email: emailField?.value.trim() || "",
+    address: addressField?.value.trim() || "",
+    city: cityField?.value.trim() || "",
+    notes: notesField?.value.trim() || ""
   };
 }
 
@@ -412,6 +418,24 @@ function getPaymentLabel(method) {
   };
 
   return labels[method] || method;
+}
+
+async function prefillCheckoutFromAccount() {
+  try {
+    const response = await fetch("/api/auth/me");
+    const data = await response.json();
+
+    if (!data.authenticated || !data.user) return;
+
+    const user = data.user;
+
+    if (nameField && !nameField.value) nameField.value = user.name || "";
+    if (emailField && !emailField.value) emailField.value = user.email || "";
+    if (addressField && !addressField.value) addressField.value = user.address || "";
+    if (cityField && !cityField.value) cityField.value = user.city || "";
+  } catch (error) {
+    console.error("Errore prefill checkout:", error);
+  }
 }
 
 async function submitOrder(event) {
@@ -554,3 +578,4 @@ if (form) {
 togglePaymentFields();
 renderSummary();
 updateAgeCheckVisibility();
+prefillCheckoutFromAccount();
