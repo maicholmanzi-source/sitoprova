@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "name": "T-shirt Basic",
+    "category": "Abbigliamento",
+    "description": "Maglietta comoda e leggera, perfetta ogni giorno.",
+    "longDescription": "Una t-shirt versatile, morbida e traspirante. Ideale per outfit casual, lavoro informale e tempo libero.",
+    "price": 19.99,
+    "image": "images/shirt.jpg"
+  },
+  {
+    "id": 2,
+    "name": "Sneakers Urban",
+    "category": "Scarpe",
+    "description": "Scarpe casual moderne e comodissime.",
+    "longDescription": "Sneakers dallo stile urbano, adatte all'uso quotidiano. Suola confortevole e design moderno.",
+    "price": 59.99,
+    "image": "/images/uploads/1775087029242-aglianico.png"
+  },
+  {
+    "id": 3,
+    "name": "Zaino Travel",
+    "category": "Accessori",
+    "description": "Ideale per lavoro, studio e viaggi brevi.",
+    "longDescription": "Zaino capiente e resistente con scomparti interni. Perfetto per laptop, quaderni e accessori.",
+    "price": 39.99,
+    "image": "images/coda.png"
+  },
+  {
+    "id": 4,
+    "name": "Orologio Smart",
+    "category": "vino",
+    "description": "Design elegante con stile minimal.",
+    "longDescription": "Orologio moderno con look raffinato, ottimo per uno stile pulito e professionale.",
+    "price": 89.99,
+    "image": "images/watch.jpg"
+  }
+]

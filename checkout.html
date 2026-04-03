@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout - UrbanVibe</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .checkout-container {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 20px 40px;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 28px;
+    }
+
+    .checkout-box {
+      background: white;
+      padding: 28px;
+      border-radius: 20px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .checkout-box h2,
+    .checkout-box h3 {
+      margin-bottom: 18px;
+      color: #111827;
+    }
+
+    .checkout-lead {
+      color: #6b7280;
+      margin-bottom: 22px;
+      line-height: 1.6;
+    }
+
+    .checkout-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .checkout-form input,
+    .checkout-form textarea,
+    .checkout-form select {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      font-size: 15px;
+      background: white;
+      outline: none;
+    }
+
+    .checkout-form input:focus,
+    .checkout-form textarea:focus,
+    .checkout-form select:focus {
+      border-color: #06b6d4;
+    }
+
+    .checkout-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    .payment-box {
+      margin-top: 8px;
+      padding: 18px;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: #f8fafc;
+    }
+
+    .payment-box h3 {
+      margin-bottom: 14px;
+      color: #111827;
+    }
+
+    .payment-methods {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .payment-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      background: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .payment-option input {
+      margin: 0;
+      width: auto;
+    }
+
+    .card-payment-fields {
+      display: grid;
+      gap: 14px;
+    }
+
+    .order-summary-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .order-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .order-item-name {
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+
+    .order-item-meta {
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .order-item-price {
+      font-weight: 700;
+      color: #111827;
+      white-space: nowrap;
+    }
+
+    .coupon-box {
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid #eee;
+    }
+
+    .coupon-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .coupon-row input {
+      flex: 1;
+      min-width: 200px;
+      padding: 13px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    .coupon-row input:focus {
+      border-color: #06b6d4;
+    }
+
+    .coupon-message {
+      margin-top: 10px;
+      font-weight: 600;
+      min-height: 20px;
+    }
+
+    .order-totals-box {
+      margin-top: 22px;
+      border-top: 1px solid #eee;
+      padding-top: 18px;
+    }
+
+    .order-total-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      color: #374151;
+    }
+
+    .discount-row {
+      color: #15803d;
+      font-weight: 700;
+    }
+
+    .shipping-note {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .total {
+      font-size: 24px;
+      font-weight: 800;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: #111827;
+    }
+
+    .secure-note {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .top-bar {
+      background: #0f172a;
+      color: white;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .top-bar strong {
+      font-size: 20px;
+    }
+
+    .top-bar a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .section-badge {
+      display: inline-block;
+      margin-bottom: 12px;
+      background: #ecfeff;
+      color: #0f766e;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 900px) {
+      .checkout-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .checkout-grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .top-bar {
+        padding: 18px 20px;
+      }
+
+      .checkout-container {
+        padding: 0 16px 32px;
+        margin-top: 24px;
+      }
+
+      .checkout-box {
+        padding: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-bar">
+    <div><strong>UrbanVibe</strong></div>
+    <a href="index.html">← Torna al negozio</a>
+  </header>
+
+  <main class="checkout-container">
+    <section class="checkout-box">
+      <span class="section-badge">Checkout</span>
+      <h2>Dati cliente</h2>
+      <p class="checkout-lead">
+        Inserisci i tuoi dati per completare l’ordine in modo rapido e semplice.
+      </p>
+
+      <form class="checkout-form" id="checkout-form">
+        <div>
+          <label class="field-label" for="name">Nome e cognome</label>
+          <input type="text" id="name" placeholder="Mario Rossi" required />
+        </div>
+
+        <div class="checkout-grid-2">
+          <div>
+            <label class="field-label" for="email">Email</label>
+            <input type="email" id="email" placeholder="mario@email.com" required />
+          </div>
+
+          <div>
+            <label class="field-label" for="city">Città</label>
+            <input type="text" id="city" placeholder="Milano" required />
+          </div>
+        </div>
+
+        <div>
+          <label class="field-label" for="address">Indirizzo</label>
+          <input type="text" id="address" placeholder="Via Roma 10" required />
+        </div>
+
+        <div>
+          <label class="field-label" for="notes">Note ordine</label>
+          <textarea id="notes" rows="4" placeholder="Citofono, orario preferito, istruzioni di consegna..."></textarea>
+        </div>
+
+        <div class="payment-box">
+          <h3>Metodo di pagamento</h3>
+
+          <div class="payment-methods">
+            <label class="payment-option">
+              <input type="radio" name="payment-method" value="card" checked />
+              <span>Carta</span>
+            </label>
+
+            <label class="payment-option">
+              <input type="radio" name="payment-method" value="cash" />
+              <span>Pagamento alla consegna</span>
+            </label>
+
+            <label class="payment-option">
+              <input type="radio" name="payment-method" value="bank" />
+              <span>Bonifico</span>
+            </label>
+          </div>
+
+          <div id="card-payment-fields" class="card-payment-fields">
+            <div>
+              <label class="field-label" for="card-name">Nome sulla carta</label>
+              <input type="text" id="card-name" placeholder="Mario Rossi" />
+            </div>
+
+            <div>
+              <label class="field-label" for="card-number">Numero carta</label>
+              <input type="text" id="card-number" placeholder="1234 5678 9012 3456" maxlength="19" />
+            </div>
+
+            <div class="checkout-grid-2">
+              <div>
+                <label class="field-label" for="card-expiry">Scadenza</label>
+                <input type="text" id="card-expiry" placeholder="MM/AA" maxlength="5" />
+              </div>
+
+              <div>
+                <label class="field-label" for="card-cvv">CVV</label>
+                <input type="text" id="card-cvv" placeholder="123" maxlength="4" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Conferma ordine</button>
+      </form>
+    </section>
+
+    <section class="checkout-box">
+      <span class="section-badge">Riepilogo</span>
+      <h2>Riepilogo ordine</h2>
+
+      <div id="order-summary" class="order-summary-list"></div>
+
+      <div class="coupon-box">
+        <h3>Codice sconto</h3>
+        <div class="coupon-row">
+          <input type="text" id="coupon-code" placeholder="Inserisci coupon" />
+          <button type="button" id="apply-coupon-btn" class="btn-secondary">Applica</button>
+        </div>
+        <p id="coupon-message" class="coupon-message"></p>
+      </div>
+
+      <div class="order-totals-box">
+        <div class="order-total-row">
+          <span>Subtotale</span>
+          <span>€ <span id="order-subtotal">0.00</span></span>
+        </div>
+
+        <div class="order-total-row discount-row">
+          <span>Sconto</span>
+          <span>- € <span id="order-discount">0.00</span></span>
+        </div>
+      </div>
+
+      <div class="total">
+        <span>Totale</span>
+        <span>€ <span id="order-total">0.00</span></span>
+      </div>
+
+      <p class="shipping-note">
+        Spedizione standard inclusa nel totale finale, salvo diverse logiche impostate in JavaScript.
+      </p>
+
+      <div class="secure-note">
+        Acquisto protetto. Dopo la conferma, l’ordine verrà elaborato con i dati inseriti nel modulo.
+      </div>
+    </section>
+  </main>
+
+  <script src="checkout.js"></script>
+</body>
+</html>

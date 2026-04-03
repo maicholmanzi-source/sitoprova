@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UrbanVibe - E-commerce</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="logo">UrbanVibe</div>
+
+    <nav>
+      <a href="#home">Home</a>
+      <a href="#prodotti">Prodotti</a>
+      <a href="#" id="nav-cart-link">Carrello</a>
+    </nav>
+
+    <button id="cart-btn" class="cart-btn">
+      🛒 Carrello (<span id="cart-count">0</span>)
+    </button>
+  </header>
+
+  <section class="hero" id="home">
+    <div>
+      <h1>Stile urbano, semplice da acquistare</h1>
+      <p>Scopri abbigliamento, accessori e scarpe selezionati per il tuo look quotidiano.</p>
+      <a href="#prodotti" class="btn-primary">Scopri i prodotti</a>
+    </div>
+  </section>
+
+  <main class="container">
+    <section id="prodotti">
+      <h2>I nostri prodotti</h2>
+
+      <div class="filters-bar">
+        <input
+          type="text"
+          id="search-input"
+          placeholder="Cerca un prodotto..."
+          class="search-input"
+        />
+
+        <select id="category-filter" class="category-filter">
+          <option value="Tutte">Tutte le categorie</option>
+        </select>
+
+        <select id="sort-filter" class="category-filter">
+          <option value="default">Ordina per</option>
+          <option value="price-asc">Prezzo: dal più basso</option>
+          <option value="price-desc">Prezzo: dal più alto</option>
+          <option value="name-asc">Nome: A-Z</option>
+          <option value="name-desc">Nome: Z-A</option>
+        </select>
+      </div>
+
+      <div id="product-list" class="product-grid"></div>
+    </section>
+  </main>
+
+  <aside id="cart-sidebar" class="cart-sidebar hidden">
+    <div class="cart-header">
+      <h2>Carrello</h2>
+      <button id="close-cart">✖</button>
+    </div>
+
+    <div id="cart-items" class="cart-items"></div>
+
+    <div class="cart-footer">
+      <p><strong>Totale: € <span id="cart-total">0.00</span></strong></p>
+      <button id="clear-cart" class="btn-secondary">Svuota carrello</button>
+      <a href="checkout.html" class="btn-primary">Checkout</a>
+    </div>
+  </aside>
+
+  <script src="script.js"></script>
+</body>
+</html>

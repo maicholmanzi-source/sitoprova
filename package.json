@@ -1,0 +1,17 @@
+{
+  "name": "ecommerce-base",
+  "version": "1.0.0",
+  "description": "Mini e-commerce con Node.js e Express",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "express-session": "^1.19.0",
+    "multer": "^2.1.1"
+  }
+}
