@@ -17,10 +17,13 @@ const cardNumberInput = document.getElementById("card-number");
 const cardExpiryInput = document.getElementById("card-expiry");
 const cardCvvInput = document.getElementById("card-cvv");
 
+const ageCheckWrapper = document.getElementById("age-check-wrapper");
 const birthDateInput = document.getElementById("birth-date");
 const ageConfirmCheckbox = document.getElementById("age-confirm-checkbox");
 const ageCheckMessage = document.getElementById("age-check-message");
 const submitOrderBtn = form?.querySelector('button[type="submit"]');
+
+const AGE_RESTRICTED_CATEGORIES = ["vino", "alcol", "alcolici"];
 
 let appliedCoupon = null;
 let discountAmount = 0;
@@ -82,6 +85,12 @@ function resetCouponState(clearMessage = false) {
   updateTotals();
 }
 
+function cartRequiresAgeVerification() {
+  return cart.some((item) =>
+    AGE_RESTRICTED_CATEGORIES.includes(String(item.category || "").toLowerCase())
+  );
+}
+
 function renderSummary() {
   if (!summary) return;
 
@@ -93,6 +102,8 @@ function renderSummary() {
     if (subtotalEl) subtotalEl.textContent = "0.00";
     if (discountEl) discountEl.textContent = "0.00";
     if (totalEl) totalEl.textContent = "0.00";
+
+    updateAgeCheckVisibility();
     return;
   }
 
@@ -112,6 +123,7 @@ function renderSummary() {
   });
 
   updateTotals();
+  updateAgeCheckVisibility();
 }
 
 async function applyCoupon() {
@@ -296,6 +308,23 @@ function validateAgeVerification(ageVerification) {
 }
 
 function updateAgeVerificationUI() {
+  const required = cartRequiresAgeVerification();
+
+  if (!required) {
+    if (ageCheckMessage) {
+      ageCheckMessage.textContent = "";
+      ageCheckMessage.style.color = "";
+    }
+
+    if (submitOrderBtn) {
+      submitOrderBtn.disabled = false;
+      submitOrderBtn.style.opacity = "1";
+      submitOrderBtn.style.cursor = "pointer";
+    }
+
+    return;
+  }
+
   const ageVerification = getAgeVerificationData();
   const validation = validateAgeVerification(ageVerification);
 
@@ -309,6 +338,16 @@ function updateAgeVerificationUI() {
     submitOrderBtn.style.opacity = validation.valid ? "1" : "0.6";
     submitOrderBtn.style.cursor = validation.valid ? "pointer" : "not-allowed";
   }
+}
+
+function updateAgeCheckVisibility() {
+  const required = cartRequiresAgeVerification();
+
+  if (ageCheckWrapper) {
+    ageCheckWrapper.style.display = required ? "block" : "none";
+  }
+
+  updateAgeVerificationUI();
 }
 
 function getCustomerData() {
@@ -378,12 +417,27 @@ async function submitOrder(event) {
     return;
   }
 
-  const ageVerification = getAgeVerificationData();
-  const ageValidation = validateAgeVerification(ageVerification);
+  const requiresAgeVerification = cartRequiresAgeVerification();
 
-  if (!ageValidation.valid) {
-    alert(ageValidation.message);
-    return;
+  if (requiresAgeVerification) {
+    const ageVerification = getAgeVerificationData();
+    const ageValidation = validateAgeVerification(ageVerification);
+
+    if (!ageValidation.valid) {
+      alert(ageValidation.message);
+      return;
+    }
+  }
+
+  const payload = {
+    customer,
+    items: cart,
+    couponCode: appliedCoupon ? appliedCoupon.code : null,
+    payment
+  };
+
+  if (requiresAgeVerification) {
+    payload.ageVerification = getAgeVerificationData();
   }
 
   try {
@@ -392,13 +446,7 @@ async function submitOrder(event) {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        customer,
-        items: cart,
-        couponCode: appliedCoupon ? appliedCoupon.code : null,
-        payment,
-        ageVerification
-      })
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json();
@@ -484,4 +532,4 @@ if (form) {
 
 togglePaymentFields();
 renderSummary();
-updateAgeVerificationUI();
+updateAgeCheckVisibility();

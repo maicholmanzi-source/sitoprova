@@ -36,6 +36,8 @@ const COUPONS = [
   { code: "SAVE5", type: "fixed", value: 5 }
 ];
 
+const AGE_RESTRICTED_CATEGORIES = ["vino", "alcol", "alcolici"];
+
 app.disable("x-powered-by");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -235,6 +237,12 @@ function calculateAgeFromBirthDate(birthDateValue) {
   }
 
   return age;
+}
+
+function orderRequiresAgeVerification(items = []) {
+  return items.some((item) =>
+    AGE_RESTRICTED_CATEGORIES.includes(String(item.category || "").toLowerCase())
+  );
 }
 
 function createMailTransporter() {
@@ -486,30 +494,33 @@ app.post("/api/orders", async (req, res) => {
       return res.status(400).json({ message: "Dati cliente incompleti" });
     }
 
+    const requiresAgeCheck = orderRequiresAgeVerification(items);
     let verifiedAge = null;
 
-    if (DEMO_AGE_VERIFICATION) {
-      if (
-        !ageVerification ||
-        !ageVerification.birthDate ||
-        !ageVerification.confirmedMajority
-      ) {
-        return res.status(400).json({
-          message: "Verifica età mancante"
-        });
-      }
+    if (requiresAgeCheck) {
+      if (DEMO_AGE_VERIFICATION) {
+        if (
+          !ageVerification ||
+          !ageVerification.birthDate ||
+          !ageVerification.confirmedMajority
+        ) {
+          return res.status(400).json({
+            message: "Verifica età mancante"
+          });
+        }
 
-      verifiedAge = calculateAgeFromBirthDate(ageVerification.birthDate);
+        verifiedAge = calculateAgeFromBirthDate(ageVerification.birthDate);
 
-      if (verifiedAge < 18) {
+        if (verifiedAge < 18) {
+          return res.status(403).json({
+            message: "Ordine non consentito ai minori"
+          });
+        }
+      } else {
         return res.status(403).json({
-          message: "Ordine non consentito ai minori"
+          message: "Verifica età reale non ancora configurata"
         });
       }
-    } else {
-      return res.status(403).json({
-        message: "Verifica età reale non ancora configurata"
-      });
     }
 
     const subtotal = items.reduce((sum, item) => {
@@ -560,12 +571,14 @@ app.post("/api/orders", async (req, res) => {
           }
         : null,
       payment: sanitizePayment(payment),
-      ageVerification: {
-        mode: "demo",
-        birthDate: ageVerification.birthDate,
-        confirmedMajority: true,
-        verifiedAge
-      }
+      ageVerification: requiresAgeCheck
+        ? {
+            mode: "demo",
+            birthDate: ageVerification.birthDate,
+            confirmedMajority: true,
+            verifiedAge
+          }
+        : null
     };
 
     orders.push(newOrder);
