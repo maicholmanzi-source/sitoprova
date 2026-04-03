@@ -165,15 +165,35 @@ async function writeNotifications(notifications) {
   await fs.writeFile(notificationsPath, JSON.stringify(notifications, null, 2));
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeVatNumber(value) {
+  return String(value || "").replace(/\s+/g, "").trim();
+}
+
+function isValidVatNumber(vatNumber) {
+  return /^\d{11}$/.test(String(vatNumber || ""));
+}
+
+function sanitizeAccountType(value) {
+  return value === "business" ? "business" : "private";
+}
+
 function sanitizeUser(user) {
   if (!user) return null;
 
   return {
     id: user.id,
+    accountType: sanitizeAccountType(user.accountType),
     name: user.name,
     email: user.email,
     address: user.address || "",
     city: user.city || "",
+    companyName: user.companyName || "",
+    vatNumber: user.vatNumber || "",
+    contactPerson: user.contactPerson || "",
     createdAt: user.createdAt
   };
 }
@@ -386,6 +406,14 @@ function buildOrderConfirmationHtml(order) {
     ? `<p style="margin:0 0 8px;"><strong>Nota di spedizione:</strong> ${escapeHtml(order.shippingNote)}</p>`
     : "";
 
+  const companyHtml =
+    order.customer?.accountType === "business"
+      ? `
+        <p style="margin:0 0 8px;"><strong>Azienda:</strong> ${escapeHtml(order.customer?.companyName || "-")}</p>
+        <p style="margin:0 0 8px;"><strong>Partita IVA:</strong> ${escapeHtml(order.customer?.vatNumber || "-")}</p>
+      `
+      : "";
+
   return `
     <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#111827;">
       <h1 style="margin-bottom:8px;">Ordine confermato 🎉</h1>
@@ -397,6 +425,7 @@ function buildOrderConfirmationHtml(order) {
         <p style="margin:0 0 8px;"><strong>ID ordine:</strong> ${escapeHtml(order.id)}</p>
         <p style="margin:0 0 8px;"><strong>Data:</strong> ${new Date(order.createdAt).toLocaleString("it-IT")}</p>
         <p style="margin:0 0 8px;"><strong>Cliente:</strong> ${escapeHtml(order.customer?.name || "-")}</p>
+        ${companyHtml}
         <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(order.customer?.email || "-")}</p>
         <p style="margin:0 0 8px;"><strong>Pagamento:</strong> ${escapeHtml(getPaymentLabel(order.payment?.method))}</p>
         ${shippingNoteHtml}
@@ -444,17 +473,27 @@ function buildInvoiceText(order) {
   lines.push("");
 
   lines.push("DATI CLIENTE");
+  lines.push(`Tipo account: ${order.customer?.accountType || "private"}`);
   lines.push(`Nome: ${order.customer?.name || "-"}`);
+
+  if (order.customer?.accountType === "business") {
+    lines.push(`Ragione sociale: ${order.customer?.companyName || "-"}`);
+    lines.push(`Partita IVA: ${order.customer?.vatNumber || "-"}`);
+    lines.push(`Referente: ${order.customer?.contactPerson || "-"}`);
+  }
+
   lines.push(`Email: ${order.customer?.email || "-"}`);
   lines.push(`Indirizzo: ${order.customer?.address || "-"}`);
   lines.push(`Città: ${order.customer?.city || "-"}`);
   lines.push(`Note: ${order.customer?.notes || "-"}`);
+
   if (order.shippingNote) {
     lines.push(`Nota spedizione: ${order.shippingNote}`);
   }
-  lines.push("");
 
+  lines.push("");
   lines.push("PRODOTTI");
+
   (order.items || []).forEach((item, index) => {
     const quantity = Number(item.quantity || 0);
     const price = Number(item.price || 0);
@@ -564,6 +603,9 @@ async function sendOrderConfirmationEmail(order) {
       "Ordine confermato",
       `ID ordine: ${order.id}`,
       `Cliente: ${order.customer?.name || "-"}`,
+      order.customer?.accountType === "business"
+        ? `Azienda: ${order.customer?.companyName || "-"}`
+        : "",
       `Totale: ${formatPrice(order.total || 0)}`,
       `Pagamento: ${getPaymentLabel(order.payment?.method)}`,
       order.shippingNote ? `Nota spedizione: ${order.shippingNote}` : ""
@@ -624,34 +666,66 @@ app.post("/api/admin/logout", (req, res) => {
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const {
+      accountType,
+      name,
+      email,
+      password,
+      address,
+      city,
+      companyName,
+      vatNumber,
+      contactPerson
+    } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "Compila tutti i campi" });
+    const safeAccountType = sanitizeAccountType(accountType);
+    const safeName = String(name || "").trim();
+    const safeEmail = normalizeEmail(email);
+    const safePassword = String(password || "");
+    const safeAddress = String(address || "").trim();
+    const safeCity = String(city || "").trim();
+    const safeCompanyName = String(companyName || "").trim();
+    const safeVatNumber = normalizeVatNumber(vatNumber);
+    const safeContactPerson = String(contactPerson || "").trim();
+
+    if (!safeName || !safeEmail || !safePassword) {
+      return res.status(400).json({ message: "Compila tutti i campi obbligatori" });
     }
 
-    if (String(password).length < 6) {
+    if (safePassword.length < 6) {
       return res.status(400).json({ message: "La password deve avere almeno 6 caratteri" });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const users = await readUsers();
+    if (safeAccountType === "business") {
+      if (!safeCompanyName || !safeVatNumber || !safeContactPerson) {
+        return res.status(400).json({ message: "Compila tutti i campi azienda" });
+      }
 
-    const existingUser = users.find((user) => user.email === normalizedEmail);
+      if (!isValidVatNumber(safeVatNumber)) {
+        return res.status(400).json({ message: "La partita IVA deve contenere 11 cifre" });
+      }
+    }
+
+    const users = await readUsers();
+    const existingUser = users.find((user) => user.email === safeEmail);
 
     if (existingUser) {
       return res.status(409).json({ message: "Esiste già un account con questa email" });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(safePassword, 10);
 
     const newUser = {
       id: uuidv4(),
-      name: String(name).trim(),
-      email: normalizedEmail,
+      accountType: safeAccountType,
+      name: safeName,
+      email: safeEmail,
       passwordHash,
-      address: "",
-      city: "",
+      address: safeAddress,
+      city: safeCity,
+      companyName: safeAccountType === "business" ? safeCompanyName : "",
+      vatNumber: safeAccountType === "business" ? safeVatNumber : "",
+      contactPerson: safeAccountType === "business" ? safeContactPerson : "",
       createdAt: new Date().toISOString()
     };
 
@@ -665,7 +739,10 @@ app.post("/api/auth/register", async (req, res) => {
     await createNotification({
       scope: "admin",
       title: "Nuovo utente registrato",
-      message: `Si è registrato un nuovo utente: ${newUser.email}`,
+      message:
+        safeAccountType === "business"
+          ? `Nuovo account azienda registrato: ${newUser.companyName} (${newUser.email})`
+          : `Si è registrato un nuovo utente: ${newUser.email}`,
       link: "/admin.html",
       type: "user"
     });
@@ -674,7 +751,10 @@ app.post("/api/auth/register", async (req, res) => {
       scope: "user",
       userId: newUser.id,
       title: "Account creato",
-      message: "Il tuo account è stato creato con successo.",
+      message:
+        safeAccountType === "business"
+          ? "Il tuo account azienda è stato creato con successo."
+          : "Il tuo account è stato creato con successo.",
       link: "/account.html",
       type: "account"
     });
@@ -693,20 +773,21 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    const safeEmail = normalizeEmail(email);
+    const safePassword = String(password || "");
+
+    if (!safeEmail || !safePassword) {
       return res.status(400).json({ message: "Inserisci email e password" });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
     const users = await readUsers();
-
-    const user = users.find((item) => item.email === normalizedEmail);
+    const user = users.find((item) => item.email === safeEmail);
 
     if (!user) {
       return res.status(401).json({ message: "Credenziali non valide" });
     }
 
-    const isValid = await bcrypt.compare(password, user.passwordHash);
+    const isValid = await bcrypt.compare(safePassword, user.passwordHash);
 
     if (!isValid) {
       return res.status(401).json({ message: "Credenziali non valide" });
@@ -757,9 +838,23 @@ app.get("/api/auth/me", async (req, res) => {
 
 app.put("/api/auth/profile", requireUserApi, async (req, res) => {
   try {
-    const { name, address, city } = req.body;
+    const {
+      name,
+      address,
+      city,
+      companyName,
+      vatNumber,
+      contactPerson
+    } = req.body;
 
-    if (!name) {
+    const safeName = String(name || "").trim();
+    const safeAddress = String(address || "").trim();
+    const safeCity = String(city || "").trim();
+    const safeCompanyName = String(companyName || "").trim();
+    const safeVatNumber = normalizeVatNumber(vatNumber);
+    const safeContactPerson = String(contactPerson || "").trim();
+
+    if (!safeName) {
       return res.status(400).json({ message: "Il nome è obbligatorio" });
     }
 
@@ -770,15 +865,30 @@ app.put("/api/auth/profile", requireUserApi, async (req, res) => {
       return res.status(404).json({ message: "Utente non trovato" });
     }
 
+    const existingUser = users[index];
+    const accountType = sanitizeAccountType(existingUser.accountType);
+
+    if (accountType === "business") {
+      if (!safeCompanyName || !safeVatNumber || !safeContactPerson) {
+        return res.status(400).json({ message: "Compila tutti i campi azienda" });
+      }
+
+      if (!isValidVatNumber(safeVatNumber)) {
+        return res.status(400).json({ message: "La partita IVA deve contenere 11 cifre" });
+      }
+    }
+
     users[index] = {
-      ...users[index],
-      name: String(name).trim(),
-      address: String(address || "").trim(),
-      city: String(city || "").trim()
+      ...existingUser,
+      name: safeName,
+      address: safeAddress,
+      city: safeCity,
+      companyName: accountType === "business" ? safeCompanyName : "",
+      vatNumber: accountType === "business" ? safeVatNumber : "",
+      contactPerson: accountType === "business" ? safeContactPerson : ""
     };
 
     await writeUsers(users);
-
     req.session.userName = users[index].name;
 
     res.json({
@@ -796,8 +906,8 @@ app.get("/api/auth/orders", requireUserApi, async (req, res) => {
     const orders = await readOrders();
     const userOrders = orders
       .filter((order) => {
-        return String(order.customer?.email || "").toLowerCase() ===
-          String(req.session.userEmail || "").toLowerCase();
+        return normalizeEmail(order.customer?.email || "") ===
+          normalizeEmail(req.session.userEmail || "");
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -820,9 +930,8 @@ app.post("/api/auth/orders/:id/cancel", requireUserApi, async (req, res) => {
     }
 
     const order = orders[index];
-
-    const orderEmail = String(order.customer?.email || "").toLowerCase();
-    const sessionEmail = String(req.session.userEmail || "").toLowerCase();
+    const orderEmail = normalizeEmail(order.customer?.email || "");
+    const sessionEmail = normalizeEmail(req.session.userEmail || "");
 
     if (orderEmail !== sessionEmail) {
       return res.status(403).json({ message: "Non puoi annullare questo ordine" });
@@ -1108,6 +1217,13 @@ app.post("/api/orders", async (req, res) => {
       }
     }
 
+    let userData = null;
+
+    if (req.session?.userId) {
+      const users = await readUsers();
+      userData = users.find((item) => item.id === req.session.userId) || null;
+    }
+
     const totals = calculateDiscount(subtotal, appliedCoupon);
     const orders = await readOrders();
 
@@ -1117,10 +1233,14 @@ app.post("/api/orders", async (req, res) => {
       status: "nuovo",
       userId: req.session?.userId || null,
       customer: {
+        accountType: userData ? sanitizeAccountType(userData.accountType) : "private",
         name: customer.name,
         email: customer.email,
         address: customer.address,
         city: customer.city,
+        companyName: userData?.companyName || "",
+        vatNumber: userData?.vatNumber || "",
+        contactPerson: userData?.contactPerson || "",
         notes: [customer.notes || "", automaticShippingNote || ""]
           .filter(Boolean)
           .join("\n\n")
@@ -1377,8 +1497,12 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         "Data",
         "Stato",
         "User ID",
+        "Tipo account",
         "Cliente",
         "Email",
+        "Ragione sociale",
+        "Partita IVA",
+        "Referente",
         "Indirizzo",
         "Città",
         "Note",
@@ -1409,8 +1533,12 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         order.createdAt || "",
         order.status || "nuovo",
         order.userId || "",
+        order.customer?.accountType || "private",
         order.customer?.name || "",
         order.customer?.email || "",
+        order.customer?.companyName || "",
+        order.customer?.vatNumber || "",
+        order.customer?.contactPerson || "",
         order.customer?.address || "",
         order.customer?.city || "",
         order.customer?.notes || "",
