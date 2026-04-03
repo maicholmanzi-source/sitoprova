@@ -1,9 +1,15 @@
 const userLine = document.getElementById("account-user-line");
 const form = document.getElementById("account-form");
+const accountTypeInput = document.getElementById("account-account-type");
 const nameInput = document.getElementById("account-name");
 const emailInput = document.getElementById("account-email");
 const addressInput = document.getElementById("account-address");
 const cityInput = document.getElementById("account-city");
+const companyNameInput = document.getElementById("account-company-name");
+const vatNumberInput = document.getElementById("account-vat-number");
+const contactPersonInput = document.getElementById("account-contact-person");
+const businessFieldsBox = document.getElementById("account-business-fields");
+
 const statusBox = document.getElementById("account-status");
 const logoutBtn = document.getElementById("account-logout-btn");
 const ordersBox = document.getElementById("account-orders");
@@ -14,6 +20,7 @@ const readAllBtn = document.getElementById("account-read-all-btn");
 
 let notifications = [];
 let notificationsPollingId = null;
+let currentUser = null;
 
 function showStatus(message, type = "error") {
   if (!statusBox) return;
@@ -47,6 +54,26 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function normalizeVatNumber(value) {
+  return String(value || "").replace(/\s+/g, "").trim();
+}
+
+function isBusinessAccount() {
+  return (accountTypeInput?.value || "private") === "business";
+}
+
+function updateAccountTypeUI() {
+  const isBusiness = isBusinessAccount();
+
+  if (businessFieldsBox) {
+    businessFieldsBox.style.display = isBusiness ? "block" : "none";
+  }
+
+  if (companyNameInput) companyNameInput.required = isBusiness;
+  if (vatNumberInput) vatNumberInput.required = isBusiness;
+  if (contactPersonInput) contactPersonInput.required = isBusiness;
 }
 
 function updateNotificationBadge(unreadCount) {
@@ -144,15 +171,25 @@ async function loadMe() {
     }
 
     const user = data.user;
+    currentUser = user;
 
     if (userLine) {
-      userLine.textContent = `Benvenuto, ${user.name}. Gestisci i tuoi dati e consulta i tuoi ordini.`;
+      userLine.textContent =
+        user.accountType === "business"
+          ? `Benvenuto, ${user.name}. Gestisci il tuo account azienda e consulta i tuoi ordini.`
+          : `Benvenuto, ${user.name}. Gestisci i tuoi dati e consulta i tuoi ordini.`;
     }
 
+    if (accountTypeInput) accountTypeInput.value = user.accountType || "private";
     if (nameInput) nameInput.value = user.name || "";
     if (emailInput) emailInput.value = user.email || "";
     if (addressInput) addressInput.value = user.address || "";
     if (cityInput) cityInput.value = user.city || "";
+    if (companyNameInput) companyNameInput.value = user.companyName || "";
+    if (vatNumberInput) vatNumberInput.value = user.vatNumber || "";
+    if (contactPersonInput) contactPersonInput.value = user.contactPerson || "";
+
+    updateAccountTypeUI();
   } catch (error) {
     console.error("Errore caricamento profilo:", error);
     window.location.href = "login.html";
@@ -186,7 +223,8 @@ async function loadNotifications() {
     const data = await response.json();
 
     if (!response.ok) {
-      renderNotifications([]);
+      notifications = [];
+      renderNotifications();
       return;
     }
 
@@ -303,17 +341,41 @@ async function cancelUserOrder(orderId) {
   }
 }
 
+function validateProfilePayload(payload) {
+  if (!payload.name) {
+    return "Il nome è obbligatorio.";
+  }
+
+  if (payload.accountType === "business") {
+    if (!payload.companyName || !payload.vatNumber || !payload.contactPerson) {
+      return "Compila tutti i campi azienda.";
+    }
+
+    if (!/^\d{11}$/.test(payload.vatNumber)) {
+      return "La partita IVA deve contenere 11 cifre.";
+    }
+  }
+
+  return "";
+}
+
 async function handleSaveProfile(event) {
   event.preventDefault();
 
   const payload = {
+    accountType: accountTypeInput?.value || "private",
     name: nameInput?.value.trim() || "",
     address: addressInput?.value.trim() || "",
-    city: cityInput?.value.trim() || ""
+    city: cityInput?.value.trim() || "",
+    companyName: companyNameInput?.value.trim() || "",
+    vatNumber: normalizeVatNumber(vatNumberInput?.value || ""),
+    contactPerson: contactPersonInput?.value.trim() || ""
   };
 
-  if (!payload.name) {
-    showStatus("Il nome è obbligatorio.", "error");
+  const validationMessage = validateProfilePayload(payload);
+
+  if (validationMessage) {
+    showStatus(validationMessage, "error");
     return;
   }
 
