@@ -23,7 +23,12 @@ const ageConfirmCheckbox = document.getElementById("age-confirm-checkbox");
 const ageCheckMessage = document.getElementById("age-check-message");
 const submitOrderBtn = form?.querySelector('button[type="submit"]');
 
+const shippingLegalNoteBox = document.getElementById("shipping-legal-note-box");
+const shippingLegalNoteText = document.getElementById("shipping-legal-note-text");
+
 const AGE_RESTRICTED_CATEGORIES = ["vino", "alcol", "alcolici"];
+const SHIPPING_LEGAL_NOTE =
+  "Consegnare solo a maggiorenni previa verifica della maggiore età.";
 
 let appliedCoupon = null;
 let discountAmount = 0;
@@ -89,6 +94,20 @@ function cartRequiresAgeVerification() {
   return cart.some((item) =>
     AGE_RESTRICTED_CATEGORIES.includes(String(item.category || "").toLowerCase())
   );
+}
+
+function updateSensitiveShippingNoteUI() {
+  const required = cartRequiresAgeVerification();
+
+  if (!shippingLegalNoteBox || !shippingLegalNoteText) return;
+
+  if (required) {
+    shippingLegalNoteBox.style.display = "block";
+    shippingLegalNoteText.textContent = SHIPPING_LEGAL_NOTE;
+  } else {
+    shippingLegalNoteBox.style.display = "none";
+    shippingLegalNoteText.textContent = "";
+  }
 }
 
 function renderSummary() {
@@ -347,6 +366,7 @@ function updateAgeCheckVisibility() {
     ageCheckWrapper.style.display = required ? "block" : "none";
   }
 
+  updateSensitiveShippingNoteUI();
   updateAgeVerificationUI();
 }
 
@@ -438,6 +458,7 @@ async function submitOrder(event) {
 
   if (requiresAgeVerification) {
     payload.ageVerification = getAgeVerificationData();
+    payload.shippingNote = SHIPPING_LEGAL_NOTE;
   }
 
   try {

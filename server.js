@@ -37,6 +37,8 @@ const COUPONS = [
 ];
 
 const AGE_RESTRICTED_CATEGORIES = ["vino", "alcol", "alcolici"];
+const SENSITIVE_SHIPPING_NOTE =
+  "Consegnare solo a maggiorenni previa verifica della maggiore età.";
 
 app.disable("x-powered-by");
 app.use(express.json());
@@ -302,6 +304,10 @@ function buildOrderConfirmationHtml(order) {
     })
     .join("");
 
+  const shippingNoteHtml = order.shippingNote
+    ? `<p style="margin:0 0 8px;"><strong>Nota di spedizione:</strong> ${escapeHtml(order.shippingNote)}</p>`
+    : "";
+
   return `
     <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#111827;">
       <h1 style="margin-bottom:8px;">Ordine confermato 🎉</h1>
@@ -315,6 +321,7 @@ function buildOrderConfirmationHtml(order) {
         <p style="margin:0 0 8px;"><strong>Cliente:</strong> ${escapeHtml(order.customer?.name || "-")}</p>
         <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(order.customer?.email || "-")}</p>
         <p style="margin:0 0 8px;"><strong>Pagamento:</strong> ${escapeHtml(getPaymentLabel(order.payment?.method))}</p>
+        ${shippingNoteHtml}
         <p style="margin:0;"><strong>Totale:</strong> ${formatPrice(order.total || 0)}</p>
       </div>
 
@@ -370,8 +377,11 @@ async function sendOrderConfirmationEmail(order) {
       `ID ordine: ${order.id}`,
       `Cliente: ${order.customer?.name || "-"}`,
       `Totale: ${formatPrice(order.total || 0)}`,
-      `Pagamento: ${getPaymentLabel(order.payment?.method)}`
-    ].join("\n")
+      `Pagamento: ${getPaymentLabel(order.payment?.method)}`,
+      order.shippingNote ? `Nota spedizione: ${order.shippingNote}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n")
   });
 }
 
@@ -495,6 +505,8 @@ app.post("/api/orders", async (req, res) => {
     }
 
     const requiresAgeCheck = orderRequiresAgeVerification(items);
+    const automaticShippingNote = requiresAgeCheck ? SENSITIVE_SHIPPING_NOTE : null;
+
     let verifiedAge = null;
 
     if (requiresAgeCheck) {
@@ -550,7 +562,9 @@ app.post("/api/orders", async (req, res) => {
         email: customer.email,
         address: customer.address,
         city: customer.city,
-        notes: customer.notes || ""
+        notes: [customer.notes || "", automaticShippingNote || ""]
+          .filter(Boolean)
+          .join("\n\n")
       },
       items: items.map((item) => ({
         id: Number(item.id),
@@ -571,6 +585,7 @@ app.post("/api/orders", async (req, res) => {
           }
         : null,
       payment: sanitizePayment(payment),
+      shippingNote: automaticShippingNote,
       ageVerification: requiresAgeCheck
         ? {
             mode: "demo",
@@ -763,6 +778,7 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         "Indirizzo",
         "Città",
         "Note",
+        "Nota spedizione",
         "Prodotti",
         "Subtotale",
         "Sconto",
@@ -792,6 +808,7 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         order.customer?.address || "",
         order.customer?.city || "",
         order.customer?.notes || "",
+        order.shippingNote || "",
         productsText,
         order.subtotal || order.total || 0,
         order.discount || 0,
