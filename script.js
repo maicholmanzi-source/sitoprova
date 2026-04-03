@@ -1,19 +1,22 @@
-let cart = JSON.parse(localStorage.getItem("cart")) || [];
 let products = [];
+let filteredProducts = [];
+let cart = JSON.parse(localStorage.getItem("cart")) || [];
+let currentUser = null;
 
 const productList = document.getElementById("product-list");
-const cartItems = document.getElementById("cart-items");
-const cartCount = document.getElementById("cart-count");
-const cartTotal = document.getElementById("cart-total");
-const cartSidebar = document.getElementById("cart-sidebar");
 const cartBtn = document.getElementById("cart-btn");
-const closeCart = document.getElementById("close-cart");
-const clearCart = document.getElementById("clear-cart");
 const navCartLink = document.getElementById("nav-cart-link");
+const cartSidebar = document.getElementById("cart-sidebar");
+const closeCartBtn = document.getElementById("close-cart");
+const cartItemsContainer = document.getElementById("cart-items");
+const cartTotalElement = document.getElementById("cart-total");
+const cartCountElement = document.getElementById("cart-count");
+const clearCartBtn = document.getElementById("clear-cart");
 
 const searchInput = document.getElementById("search-input");
 const categoryFilter = document.getElementById("category-filter");
 const sortFilter = document.getElementById("sort-filter");
+const headerAuthArea = document.getElementById("header-auth-area");
 
 function formatPrice(value) {
   return Number(value || 0).toFixed(2);
@@ -26,13 +29,6 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function normalizeText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function saveCart() {
@@ -49,181 +45,39 @@ function getCartTotal() {
   }, 0);
 }
 
+function updateCartBadge() {
+  if (cartCountElement) {
+    cartCountElement.textContent = String(getCartCount());
+  }
+}
+
 function openCart() {
   if (cartSidebar) {
     cartSidebar.classList.remove("hidden");
   }
 }
 
-function hideCart() {
+function closeCart() {
   if (cartSidebar) {
     cartSidebar.classList.add("hidden");
   }
-}
-
-async function loadProducts() {
-  try {
-    const response = await fetch("/api/products");
-
-    if (!response.ok) {
-      throw new Error("Errore nel caricamento prodotti");
-    }
-
-    const data = await response.json();
-    products = Array.isArray(data) ? data : [];
-
-    populateCategories();
-    renderProducts(getFilteredProducts());
-    renderCart();
-  } catch (error) {
-    console.error(error);
-
-    if (productList) {
-      productList.innerHTML = `
-        <p class="empty-message">
-          Errore nel caricamento dei prodotti. Riprova tra poco.
-        </p>
-      `;
-    }
-  }
-}
-
-function populateCategories() {
-  if (!categoryFilter) return;
-
-  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "it"));
-
-  categoryFilter.innerHTML = `<option value="Tutte">Tutte le categorie</option>`;
-
-  categories.forEach((category) => {
-    const option = document.createElement("option");
-    option.value = category;
-    option.textContent = category;
-    categoryFilter.appendChild(option);
-  });
-}
-
-function getFilteredProducts() {
-  const searchValue = normalizeText(searchInput?.value || "");
-  const selectedCategory = categoryFilter?.value || "Tutte";
-  const selectedSort = sortFilter?.value || "default";
-
-  let filtered = products.filter((product) => {
-    const searchableText = normalizeText(
-      `${product.name} ${product.description} ${product.category}`
-    );
-
-    const matchesSearch = searchableText.includes(searchValue);
-    const matchesCategory =
-      selectedCategory === "Tutte" || product.category === selectedCategory;
-
-    return matchesSearch && matchesCategory;
-  });
-
-  if (selectedSort === "price-asc") {
-    filtered.sort((a, b) => Number(a.price) - Number(b.price));
-  } else if (selectedSort === "price-desc") {
-    filtered.sort((a, b) => Number(b.price) - Number(a.price));
-  } else if (selectedSort === "name-asc") {
-    filtered.sort((a, b) => String(a.name).localeCompare(String(b.name), "it"));
-  } else if (selectedSort === "name-desc") {
-    filtered.sort((a, b) => String(b.name).localeCompare(String(a.name), "it"));
-  }
-
-  return filtered;
-}
-
-function renderProducts(filteredProducts = products) {
-  if (!productList) return;
-
-  productList.innerHTML = "";
-
-  if (!filteredProducts.length) {
-    productList.innerHTML = `
-      <p class="empty-message">
-        Nessun prodotto trovato con i filtri selezionati.
-      </p>
-    `;
-    return;
-  }
-
-  filteredProducts.forEach((product) => {
-    const card = document.createElement("article");
-    card.className = "product-card";
-
-    card.innerHTML = `
-      <img
-        src="${escapeHtml(product.image)}"
-        alt="${escapeHtml(product.name)}"
-        class="product-image"
-      />
-
-      <div class="product-info">
-        <span class="product-category">${escapeHtml(product.category)}</span>
-        <h3>${escapeHtml(product.name)}</h3>
-        <p>${escapeHtml(product.description)}</p>
-        <div class="price">€ ${formatPrice(product.price)}</div>
-
-        <div class="product-buttons">
-          <button class="btn-outline" onclick="viewProduct(${Number(product.id)})">
-            Dettagli
-          </button>
-          <button onclick="addToCart(${Number(product.id)})">
-            Aggiungi
-          </button>
-        </div>
-      </div>
-    `;
-
-    productList.appendChild(card);
-  });
-}
-
-function renderCart() {
-  if (!cartItems || !cartCount || !cartTotal) return;
-
-  cartItems.innerHTML = "";
-
-  if (!cart.length) {
-    cartItems.innerHTML = `<p class="empty-message">Il carrello è vuoto.</p>`;
-  } else {
-    cart.forEach((item) => {
-      const row = document.createElement("div");
-      row.className = "cart-item";
-
-      row.innerHTML = `
-        <div class="cart-item-info">
-          <strong>${escapeHtml(item.name)}</strong>
-          <span>€ ${formatPrice(item.price)} x ${Number(item.quantity)}</span>
-        </div>
-
-        <div class="cart-actions">
-          <button onclick="decreaseQuantity(${Number(item.id)})">-</button>
-          <button onclick="increaseQuantity(${Number(item.id)})">+</button>
-          <button onclick="removeFromCart(${Number(item.id)})">🗑</button>
-        </div>
-      `;
-
-      cartItems.appendChild(row);
-    });
-  }
-
-  cartTotal.textContent = formatPrice(getCartTotal());
-  cartCount.textContent = String(getCartCount());
 }
 
 function addToCart(productId) {
   const product = products.find((item) => Number(item.id) === Number(productId));
   if (!product) return;
 
-  const existingItem = cart.find((item) => Number(item.id) === Number(productId));
+  const existing = cart.find((item) => Number(item.id) === Number(productId));
 
-  if (existingItem) {
-    existingItem.quantity += 1;
+  if (existing) {
+    existing.quantity += 1;
   } else {
     cart.push({
-      ...product,
+      id: Number(product.id),
+      name: product.name,
+      price: Number(product.price || 0),
+      image: product.image || "",
+      category: product.category || "",
       quantity: 1
     });
   }
@@ -233,59 +87,253 @@ function addToCart(productId) {
   openCart();
 }
 
-function increaseQuantity(productId) {
-  const item = cart.find((product) => Number(product.id) === Number(productId));
-  if (!item) return;
-
-  item.quantity += 1;
-  saveCart();
-  renderCart();
-}
-
-function decreaseQuantity(productId) {
-  const item = cart.find((product) => Number(product.id) === Number(productId));
-  if (!item) return;
-
-  item.quantity -= 1;
-
-  if (item.quantity <= 0) {
-    cart = cart.filter((product) => Number(product.id) !== Number(productId));
-  }
-
-  saveCart();
-  renderCart();
-}
-
 function removeFromCart(productId) {
   cart = cart.filter((item) => Number(item.id) !== Number(productId));
   saveCart();
   renderCart();
 }
 
-function clearEntireCart() {
+function clearCart() {
   cart = [];
   saveCart();
   renderCart();
 }
 
-function viewProduct(productId) {
-  window.location.href = `product.html?id=${productId}`;
+function renderCart() {
+  if (!cartItemsContainer || !cartTotalElement) return;
+
+  updateCartBadge();
+
+  if (!cart.length) {
+    cartItemsContainer.innerHTML = `<p class="empty-message">Il carrello è vuoto.</p>`;
+    cartTotalElement.textContent = "0.00";
+    return;
+  }
+
+  cartItemsContainer.innerHTML = cart
+    .map((item) => {
+      const lineTotal = Number(item.price || 0) * Number(item.quantity || 0);
+
+      return `
+        <div class="cart-item">
+          <div class="cart-item-info">
+            <div class="cart-item-title">${escapeHtml(item.name)}</div>
+            <div class="cart-item-meta">
+              Quantità: ${Number(item.quantity || 0)}<br />
+              Categoria: ${escapeHtml(item.category || "-")}<br />
+              Totale: € ${formatPrice(lineTotal)}
+            </div>
+          </div>
+
+          <div class="cart-item-actions">
+            <strong>€ ${formatPrice(lineTotal)}</strong>
+            <button class="cart-remove-btn" onclick="removeFromCart(${Number(item.id)})">
+              Rimuovi
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  cartTotalElement.textContent = formatPrice(getCartTotal());
+}
+
+function populateCategoryFilter(items) {
+  if (!categoryFilter) return;
+
+  const uniqueCategories = [
+    ...new Set(
+      items
+        .map((item) => String(item.category || "").trim())
+        .filter(Boolean)
+    )
+  ].sort((a, b) => a.localeCompare(b, "it"));
+
+  categoryFilter.innerHTML = `
+    <option value="Tutte">Tutte le categorie</option>
+    ${uniqueCategories
+      .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+      .join("")}
+  `;
 }
 
 function applyFilters() {
-  renderProducts(getFilteredProducts());
+  const searchTerm = (searchInput?.value || "").trim().toLowerCase();
+  const selectedCategory = categoryFilter?.value || "Tutte";
+  const selectedSort = sortFilter?.value || "default";
+
+  filteredProducts = products.filter((product) => {
+    const name = String(product.name || "").toLowerCase();
+    const description = String(product.description || "").toLowerCase();
+    const category = String(product.category || "").toLowerCase();
+
+    const matchesSearch =
+      !searchTerm ||
+      name.includes(searchTerm) ||
+      description.includes(searchTerm) ||
+      category.includes(searchTerm);
+
+    const matchesCategory =
+      selectedCategory === "Tutte" ||
+      String(product.category || "") === selectedCategory;
+
+    return matchesSearch && matchesCategory;
+  });
+
+  if (selectedSort === "price-asc") {
+    filteredProducts.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+  }
+
+  if (selectedSort === "price-desc") {
+    filteredProducts.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+  }
+
+  if (selectedSort === "name-asc") {
+    filteredProducts.sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""), "it")
+    );
+  }
+
+  if (selectedSort === "name-desc") {
+    filteredProducts.sort((a, b) =>
+      String(b.name || "").localeCompare(String(a.name || ""), "it")
+    );
+  }
+
+  renderProducts();
+}
+
+function renderProducts() {
+  if (!productList) return;
+
+  if (!filteredProducts.length) {
+    productList.innerHTML = `
+      <div class="empty-message">
+        Nessun prodotto trovato con i filtri selezionati.
+      </div>
+    `;
+    return;
+  }
+
+  productList.innerHTML = filteredProducts
+    .map((product) => {
+      const imageHtml = product.image
+        ? `<img class="product-image-real" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />`
+        : `<div class="product-image-fallback">🛍️</div>`;
+
+      return `
+        <article class="product-card">
+          <div class="product-image">
+            ${imageHtml}
+          </div>
+
+          <div class="product-info">
+            <span class="product-category">${escapeHtml(product.category || "Generale")}</span>
+            <h3>${escapeHtml(product.name)}</h3>
+            <p>${escapeHtml(product.description || "")}</p>
+            <div class="price">€ ${formatPrice(product.price)}</div>
+
+            <div class="product-buttons">
+              <a href="product.html?id=${Number(product.id)}" class="btn-outline">Dettagli</a>
+              <button class="btn-primary" onclick="addToCart(${Number(product.id)})">
+                Aggiungi
+              </button>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function loadProducts() {
+  try {
+    const response = await fetch("/api/products");
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Errore nel caricamento prodotti");
+    }
+
+    products = Array.isArray(data) ? data : [];
+    populateCategoryFilter(products);
+    filteredProducts = [...products];
+    applyFilters();
+  } catch (error) {
+    console.error("Errore caricamento prodotti:", error);
+
+    if (productList) {
+      productList.innerHTML = `
+        <div class="empty-message">
+          Errore nel caricamento prodotti.
+        </div>
+      `;
+    }
+  }
+}
+
+async function loadAuthState() {
+  try {
+    const response = await fetch("/api/auth/me", {
+      credentials: "include"
+    });
+
+    const data = await response.json();
+    currentUser = data?.authenticated ? data.user : null;
+    renderHeaderAuth();
+  } catch (error) {
+    console.error("Errore controllo sessione utente:", error);
+    currentUser = null;
+    renderHeaderAuth();
+  }
+}
+
+function renderHeaderAuth() {
+  if (!headerAuthArea) return;
+
+  if (!currentUser) {
+    headerAuthArea.innerHTML = `
+      <a href="login.html" class="header-link-btn">Accedi</a>
+      <a href="register.html" class="header-link-btn primary">Registrati</a>
+    `;
+    return;
+  }
+
+  headerAuthArea.innerHTML = `
+    <span class="header-user-greeting">Ciao, ${escapeHtml(currentUser.name || "Utente")}</span>
+    <a href="account.html" class="header-link-btn">Account</a>
+    <button id="header-logout-btn" class="header-link-btn">Logout</button>
+  `;
+
+  const logoutBtn = document.getElementById("header-logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", handleUserLogout);
+  }
+}
+
+async function handleUserLogout() {
+  try {
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      throw new Error("Logout non riuscito");
+    }
+
+    currentUser = null;
+    renderHeaderAuth();
+    window.location.href = "index.html";
+  } catch (error) {
+    console.error("Errore logout utente:", error);
+    alert("Errore durante il logout.");
+  }
 }
 
 if (cartBtn) {
   cartBtn.addEventListener("click", openCart);
-}
-
-if (closeCart) {
-  closeCart.addEventListener("click", hideCart);
-}
-
-if (clearCart) {
-  clearCart.addEventListener("click", clearEntireCart);
 }
 
 if (navCartLink) {
@@ -293,6 +341,14 @@ if (navCartLink) {
     event.preventDefault();
     openCart();
   });
+}
+
+if (closeCartBtn) {
+  closeCartBtn.addEventListener("click", closeCart);
+}
+
+if (clearCartBtn) {
+  clearCartBtn.addEventListener("click", clearCart);
 }
 
 if (searchInput) {
@@ -307,11 +363,9 @@ if (sortFilter) {
   sortFilter.addEventListener("change", applyFilters);
 }
 
-window.viewProduct = viewProduct;
 window.addToCart = addToCart;
-window.increaseQuantity = increaseQuantity;
-window.decreaseQuantity = decreaseQuantity;
 window.removeFromCart = removeFromCart;
 
 renderCart();
 loadProducts();
+loadAuthState();
