@@ -709,6 +709,47 @@ app.get("/api/auth/orders", requireUserApi, async (req, res) => {
   }
 });
 
+app.post("/api/auth/orders/:id/cancel", requireUserApi, async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    const orders = await readOrders();
+
+    const index = orders.findIndex((order) => Number(order.id) === orderId);
+
+    if (index === -1) {
+      return res.status(404).json({ message: "Ordine non trovato" });
+    }
+
+    const order = orders[index];
+
+    const orderEmail = String(order.customer?.email || "").toLowerCase();
+    const sessionEmail = String(req.session.userEmail || "").toLowerCase();
+
+    if (orderEmail !== sessionEmail) {
+      return res.status(403).json({ message: "Non puoi annullare questo ordine" });
+    }
+
+    if ((order.status || "nuovo") !== "nuovo") {
+      return res.status(400).json({
+        message: "Puoi annullare solo ordini in stato nuovo"
+      });
+    }
+
+    orders[index].status = "annullato";
+    orders[index].cancelledAt = new Date().toISOString();
+
+    await writeOrders(orders);
+
+    return res.json({
+      message: "Ordine annullato con successo",
+      order: orders[index]
+    });
+  } catch (error) {
+    console.error("Errore annullamento ordine utente:", error);
+    return res.status(500).json({ message: "Errore annullamento ordine" });
+  }
+});
+
 app.post("/api/auth/logout", (req, res) => {
   if (!req.session) {
     return res.json({ message: "Logout completato" });
@@ -1116,7 +1157,8 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         "Scadenza",
         "Età verificata",
         "Data nascita",
-        "Verifica età"
+        "Verifica età",
+        "Data annullamento"
       ]
     ];
 
@@ -1147,7 +1189,8 @@ app.get("/api/admin/orders/export/csv", requireAdminApi, async (req, res) => {
         order.payment?.cardExpiry || "",
         order.ageVerification?.verifiedAge || "",
         order.ageVerification?.birthDate || "",
-        order.ageVerification?.mode || ""
+        order.ageVerification?.mode || "",
+        order.cancelledAt || ""
       ]);
     });
 
@@ -1173,7 +1216,8 @@ app.put("/api/admin/orders/:id/status", requireAdminApi, async (req, res) => {
       "nuovo",
       "in lavorazione",
       "spedito",
-      "completato"
+      "completato",
+      "annullato"
     ];
 
     if (!allowedStatuses.includes(status)) {
@@ -1188,6 +1232,11 @@ app.put("/api/admin/orders/:id/status", requireAdminApi, async (req, res) => {
     }
 
     orders[index].status = status;
+
+    if (status === "annullato" && !orders[index].cancelledAt) {
+      orders[index].cancelledAt = new Date().toISOString();
+    }
+
     await writeOrders(orders);
 
     res.json({

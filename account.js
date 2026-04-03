@@ -1,4 +1,3 @@
-
 const userLine = document.getElementById("account-user-line");
 const form = document.getElementById("account-form");
 const nameInput = document.getElementById("account-name");
@@ -24,6 +23,7 @@ function formatPrice(value) {
 
 function formatDate(value) {
   if (!value) return "-";
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
 
@@ -31,6 +31,15 @@ function formatDate(value) {
     dateStyle: "short",
     timeStyle: "short"
   });
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function renderOrders(orders = []) {
@@ -46,16 +55,31 @@ function renderOrders(orders = []) {
       <strong>Ordine #${order.id}</strong>
       <div class="order-meta">
         Data: ${formatDate(order.createdAt)}<br />
-        Stato: ${order.status || "nuovo"}<br />
+        Stato: ${escapeHtml(order.status || "nuovo")}<br />
         Totale: ${formatPrice(order.total || 0)}
+        ${order.shippingNote ? `<br />Nota spedizione: ${escapeHtml(order.shippingNote)}` : ""}
+        ${order.cancelledAt ? `<br />Annullato il: ${formatDate(order.cancelledAt)}` : ""}
       </div>
+
+      ${(order.status || "nuovo") === "nuovo"
+        ? `
+          <div style="margin-top:12px;">
+            <button class="btn-outline" onclick="cancelUserOrder(${Number(order.id)})">
+              Annulla ordine
+            </button>
+          </div>
+        `
+        : ""
+      }
     </article>
   `).join("");
 }
 
 async function loadMe() {
   try {
-    const response = await fetch("/api/auth/me");
+    const response = await fetch("/api/auth/me", {
+      credentials: "include"
+    });
     const data = await response.json();
 
     if (!data.authenticated) {
@@ -81,7 +105,9 @@ async function loadMe() {
 
 async function loadOrders() {
   try {
-    const response = await fetch("/api/auth/orders");
+    const response = await fetch("/api/auth/orders", {
+      credentials: "include"
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -93,6 +119,34 @@ async function loadOrders() {
   } catch (error) {
     console.error("Errore caricamento ordini account:", error);
     renderOrders([]);
+  }
+}
+
+async function cancelUserOrder(orderId) {
+  const confirmed = window.confirm(
+    "Vuoi davvero annullare questo ordine? Puoi farlo solo finché è in stato nuovo."
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`/api/auth/orders/${orderId}/cancel`, {
+      method: "POST",
+      credentials: "include"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Impossibile annullare l’ordine.");
+      return;
+    }
+
+    alert("Ordine annullato con successo.");
+    await loadOrders();
+  } catch (error) {
+    console.error("Errore annullamento ordine:", error);
+    alert("Errore di connessione al server.");
   }
 }
 
@@ -116,6 +170,7 @@ async function handleSaveProfile(event) {
       headers: {
         "Content-Type": "application/json"
       },
+      credentials: "include",
       body: JSON.stringify(payload)
     });
 
@@ -137,7 +192,8 @@ async function handleSaveProfile(event) {
 async function handleLogout() {
   try {
     await fetch("/api/auth/logout", {
-      method: "POST"
+      method: "POST",
+      credentials: "include"
     });
 
     window.location.href = "login.html";
@@ -154,6 +210,8 @@ if (form) {
 if (logoutBtn) {
   logoutBtn.addEventListener("click", handleLogout);
 }
+
+window.cancelUserOrder = cancelUserOrder;
 
 loadMe();
 loadOrders();

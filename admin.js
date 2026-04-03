@@ -34,7 +34,8 @@ const ORDER_STATUSES = [
   "nuovo",
   "in lavorazione",
   "spedito",
-  "completato"
+  "completato",
+  "annullato"
 ];
 
 function formatPrice(value) {
@@ -301,6 +302,12 @@ function renderOrders() {
           ${
             order.shippingNote
               ? `<div class="admin-meta" style="margin-bottom:12px;"><strong>Nota spedizione:</strong> ${escapeHtml(order.shippingNote)}</div>`
+              : ""
+          }
+
+          ${
+            order.cancelledAt
+              ? `<div class="admin-meta" style="margin-bottom:12px;"><strong>Data annullamento:</strong> ${formatDate(order.cancelledAt)}</div>`
               : ""
           }
 
