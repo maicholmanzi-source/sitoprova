@@ -1,10 +1,10 @@
-const bcrypt = require('bcryptjs');
+const bcrypt = require("bcryptjs");
 
 async function main() {
   const password = process.argv[2];
 
   if (!password) {
-    console.error('Uso: node create-admin-hash.js "la-tua-password-admin"');
+    console.error('Uso: node create-admin-hash.js "LaTuaPasswordAdmin"');
     process.exit(1);
   }
 
@@ -13,6 +13,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('Errore generazione hash admin:', error);
+  console.error("Errore generazione hash:", error);
   process.exit(1);
 });

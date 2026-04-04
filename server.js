@@ -48,6 +48,7 @@ const uploadDir = path.join(imagesDir, "uploads");
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
 const DEMO_AGE_VERIFICATION =
   String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
 
@@ -59,8 +60,8 @@ if (!ADMIN_USERNAME) {
   throw new Error("Variabile ambiente obbligatoria mancante: ADMIN_USERNAME");
 }
 
-if (!ADMIN_PASSWORD) {
-  throw new Error("Variabile ambiente obbligatoria mancante: ADMIN_PASSWORD");
+if (!ADMIN_PASSWORD && !ADMIN_PASSWORD_HASH) {
+  throw new Error("Variabile ambiente obbligatoria mancante: ADMIN_PASSWORD oppure ADMIN_PASSWORD_HASH");
 }
 
 
@@ -531,21 +532,43 @@ function canAccessNotification(req, notification) {
    AUTH ADMIN
 ========================= */
 
-app.post("/api/admin/login", (req, res) => {
+app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
 
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+  if (username !== ADMIN_USERNAME) {
+    return res.status(401).json({
+      message: "Username o password non validi"
+    });
+  }
+
+  try {
+    let passwordIsValid = false;
+
+    if (ADMIN_PASSWORD_HASH) {
+      passwordIsValid = await bcrypt.compare(String(password || ""), ADMIN_PASSWORD_HASH);
+    } else if (ADMIN_PASSWORD) {
+      passwordIsValid = password === ADMIN_PASSWORD;
+    }
+
+    if (!passwordIsValid) {
+      return res.status(401).json({
+        message: "Username o password non validi"
+      });
+    }
+
     req.session.isAdmin = true;
     req.session.adminUser = username;
 
     return res.json({
       message: "Login effettuato con successo"
     });
-  }
+  } catch (error) {
+    console.error("Errore login admin:", error);
 
-  return res.status(401).json({
-    message: "Username o password non validi"
-  });
+    return res.status(500).json({
+      message: "Errore durante il login admin"
+    });
+  }
 });
 
 app.get("/api/admin/session", (req, res) => {
