@@ -1,4 +1,4 @@
-const cart = JSON.parse(localStorage.getItem("cart")) || [];
+let cart = JSON.parse(localStorage.getItem("cart")) || [];
 let currentUser = null;
 
 const summary = document.getElementById("order-summary");
@@ -56,6 +56,10 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function saveCart() {
+  localStorage.setItem("cart", JSON.stringify(cart));
+}
+
 function getSubtotal() {
   return cart.reduce((sum, item) => {
     return sum + Number(item.price || 0) * Number(item.quantity || 0);
@@ -97,6 +101,44 @@ function resetCouponState(clearMessage = false) {
   }
 
   updateTotals();
+}
+
+function removeFromCart(productId) {
+  cart = cart.filter((item) => Number(item.id) !== Number(productId));
+  saveCart();
+  resetCouponState(true);
+  renderSummary();
+}
+
+function setCartItemQuantity(productId, quantity) {
+  const item = cart.find((entry) => Number(entry.id) === Number(productId));
+  if (!item) return;
+
+  const nextQuantity = Math.max(0, Number(quantity || 0));
+
+  if (nextQuantity <= 0) {
+    removeFromCart(productId);
+    return;
+  }
+
+  item.quantity = nextQuantity;
+  saveCart();
+  resetCouponState(true);
+  renderSummary();
+}
+
+function increaseCartQuantity(productId) {
+  const item = cart.find((entry) => Number(entry.id) === Number(productId));
+  if (!item) return;
+
+  setCartItemQuantity(productId, Number(item.quantity || 0) + 1);
+}
+
+function decreaseCartQuantity(productId) {
+  const item = cart.find((entry) => Number(entry.id) === Number(productId));
+  if (!item) return;
+
+  setCartItemQuantity(productId, Number(item.quantity || 0) - 1);
 }
 
 function cartRequiresAgeVerification() {
@@ -142,9 +184,29 @@ function renderSummary() {
     row.innerHTML = `
       <div>
         <div class="order-item-name">${escapeHtml(item.name)}</div>
-        <div class="order-item-meta">Quantità: ${Number(item.quantity || 0)}</div>
+        <div class="order-item-meta">Categoria: ${escapeHtml(item.category || "-")}</div>
+
+        <div class="order-quantity-controls" aria-label="Quantità ${escapeHtml(item.name)}">
+          <button type="button" class="cart-qty-btn" onclick="decreaseCartQuantity(${Number(item.id)})">-</button>
+          <input
+            type="number"
+            min="1"
+            inputmode="numeric"
+            class="cart-qty-input"
+            value="${Number(item.quantity || 0)}"
+            aria-label="Quantità ${escapeHtml(item.name)}"
+            onchange="setCartItemQuantity(${Number(item.id)}, this.value)"
+          />
+          <button type="button" class="cart-qty-btn" onclick="increaseCartQuantity(${Number(item.id)})">+</button>
+        </div>
       </div>
-      <div class="order-item-price">€ ${formatPrice(Number(item.price || 0) * Number(item.quantity || 0))}</div>
+
+      <div class="order-item-side">
+        <div class="order-item-price">€ ${formatPrice(Number(item.price || 0) * Number(item.quantity || 0))}</div>
+        <button type="button" class="btn-outline order-item-remove" onclick="removeFromCart(${Number(item.id)})">
+          Rimuovi
+        </button>
+      </div>
     `;
 
     summary.appendChild(row);
@@ -639,6 +701,11 @@ if (ageConfirmCheckbox) {
 if (form) {
   form.addEventListener("submit", submitOrder);
 }
+
+window.removeFromCart = removeFromCart;
+window.setCartItemQuantity = setCartItemQuantity;
+window.increaseCartQuantity = increaseCartQuantity;
+window.decreaseCartQuantity = decreaseCartQuantity;
 
 togglePaymentFields();
 renderSummary();

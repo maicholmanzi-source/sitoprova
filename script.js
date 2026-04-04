@@ -113,6 +113,36 @@ function removeFromCart(productId) {
   renderCart();
 }
 
+function setCartItemQuantity(productId, quantity) {
+  const item = cart.find((entry) => Number(entry.id) === Number(productId));
+  if (!item) return;
+
+  const nextQuantity = Math.max(0, Number(quantity || 0));
+
+  if (nextQuantity <= 0) {
+    removeFromCart(productId);
+    return;
+  }
+
+  item.quantity = nextQuantity;
+  saveCart();
+  renderCart();
+}
+
+function increaseCartQuantity(productId) {
+  const item = cart.find((entry) => Number(entry.id) === Number(productId));
+  if (!item) return;
+
+  setCartItemQuantity(productId, Number(item.quantity || 0) + 1);
+}
+
+function decreaseCartQuantity(productId) {
+  const item = cart.find((entry) => Number(entry.id) === Number(productId));
+  if (!item) return;
+
+  setCartItemQuantity(productId, Number(item.quantity || 0) - 1);
+}
+
 function clearCart() {
   cart = [];
   saveCart();
@@ -147,6 +177,21 @@ function renderCart() {
 
           <div class="cart-item-actions">
             <strong>€ ${formatPrice(lineTotal)}</strong>
+
+            <div class="cart-quantity-controls" aria-label="Quantità ${escapeHtml(item.name)}">
+              <button type="button" class="cart-qty-btn" onclick="decreaseCartQuantity(${Number(item.id)})">-</button>
+              <input
+                type="number"
+                min="1"
+                inputmode="numeric"
+                class="cart-qty-input"
+                value="${Number(item.quantity || 0)}"
+                aria-label="Quantità ${escapeHtml(item.name)}"
+                onchange="setCartItemQuantity(${Number(item.id)}, this.value)"
+              />
+              <button type="button" class="cart-qty-btn" onclick="increaseCartQuantity(${Number(item.id)})">+</button>
+            </div>
+
             <button class="cart-remove-btn" onclick="removeFromCart(${Number(item.id)})">
               Rimuovi
             </button>
@@ -569,6 +614,9 @@ if (homeReadAllBtn) {
 
 window.addToCart = addToCart;
 window.removeFromCart = removeFromCart;
+window.setCartItemQuantity = setCartItemQuantity;
+window.increaseCartQuantity = increaseCartQuantity;
+window.decreaseCartQuantity = decreaseCartQuantity;
 window.markNotificationAsRead = markNotificationAsRead;
 window.deleteNotification = deleteNotification;
 window.openNotification = openNotification;
