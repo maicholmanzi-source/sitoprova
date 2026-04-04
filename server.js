@@ -1588,8 +1588,10 @@ app.get("/", (req, res) => {
 async function startServer() {
   await ensureProjectFiles();
 
-  app.listen(PORT, () => {
-    console.log(`Server avviato su http://localhost:${PORT}`);
+  const HOST = "0.0.0.0";
+
+  app.listen(PORT, HOST, () => {
+    console.log(`Server avviato su http://${HOST}:${PORT}`);
   });
 }
 
