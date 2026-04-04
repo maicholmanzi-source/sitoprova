@@ -27,6 +27,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
 const DEMO_AGE_VERIFICATION =
   String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
 
+
 const COUPONS = [
   { code: "SHOP10", type: "percent", value: 10 },
   { code: "WELCOME20", type: "percent", value: 20 },
@@ -323,6 +324,7 @@ function orderRequiresAgeVerification(items = []) {
   );
 }
 
+
 function formatPrice(value) {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -363,6 +365,7 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
 
 function buildInvoiceText(order) {
   const lines = [];
@@ -483,6 +486,10 @@ function canAccessNotification(req, notification) {
 
   return false;
 }
+
+/* =========================
+   AUTH ADMIN
+========================= */
 
 /* =========================
    AUTH ADMIN
