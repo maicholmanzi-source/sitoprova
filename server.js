@@ -1,13 +1,71 @@
 const express = require("express");
 const path = require("path");
+const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const session = require("express-session");
 const multer = require("multer");
+const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require("uuid");
 
+function loadEnvFile(envPath = path.join(__dirname, ".env")) {
+  if (!fsSync.existsSync(envPath)) {
+    return;
+  }
+
+  const fileContent = fsSync.readFileSync(envPath, "utf-8");
+
+  fileContent.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.trim();
+
+    if (!line || line.startsWith("#")) {
+      return;
+    }
+
+    const normalizedLine = line.startsWith("export ") ? line.slice(7).trim() : line;
+    const separatorIndex = normalizedLine.indexOf("=");
+
+    if (separatorIndex === -1) {
+      return;
+    }
+
+    const key = normalizedLine.slice(0, separatorIndex).trim();
+    if (!key || process.env[key] !== undefined) {
+      return;
+    }
+
+    let value = normalizedLine.slice(separatorIndex + 1).trim();
+
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    process.env[key] = value;
+  });
+}
+
+loadEnvFile();
+
+function parseBoolean(value, defaultValue = false) {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+
+  return ["true", "1", "yes", "on"].includes(String(value).trim().toLowerCase());
+}
+
+function requireEnv(name) {
+  const value = String(process.env[name] || "").trim();
+
+  if (!value) {
+    throw new Error(`Variabile ambiente obbligatoria mancante: ${name}`);
+  }
+
+  return value;
+}
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 const rootDir = __dirname;
 const storageRoot = process.env.STORAGE_DIR
@@ -22,10 +80,32 @@ const notificationsPath = path.join(dataDir, "notifications.json");
 const imagesDir = path.join(storageRoot, "images");
 const uploadDir = path.join(imagesDir, "uploads");
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
-const DEMO_AGE_VERIFICATION =
-  String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
+const ADMIN_USERNAME = requireEnv("ADMIN_USERNAME");
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "");
+const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || "");
+const SESSION_SECRET = requireEnv("SESSION_SECRET");
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "urbanvibe.sid";
+const SESSION_COOKIE_MAX_AGE_MS = Number(
+  process.env.SESSION_COOKIE_MAX_AGE_MS || 1000 * 60 * 60 * 4
+);
+const SESSION_COOKIE_SECURE = parseBoolean(
+  process.env.SESSION_COOKIE_SECURE,
+  process.env.NODE_ENV === "production"
+);
+const TRUST_PROXY = parseBoolean(process.env.TRUST_PROXY, process.env.NODE_ENV === "production");
+const DEMO_AGE_VERIFICATION = parseBoolean(process.env.DEMO_AGE_VERIFICATION, true);
+
+const MAIL_FROM = String(process.env.MAIL_FROM || "").trim();
+const SMTP_HOST = String(process.env.SMTP_HOST || "").trim();
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_USER = String(process.env.SMTP_USER || "").trim();
+const SMTP_PASS = String(process.env.SMTP_PASS || "").trim();
+
+if (!ADMIN_PASSWORD && !ADMIN_PASSWORD_HASH) {
+  throw new Error(
+    "Configura ADMIN_PASSWORD oppure ADMIN_PASSWORD_HASH nelle variabili ambiente."
+  );
+}
 
 const COUPONS = [
   { code: "SHOP10", type: "percent", value: 10 },
@@ -38,20 +118,25 @@ const SENSITIVE_SHIPPING_NOTE =
   "Consegnare solo a maggiorenni previa verifica della maggiore età.";
 
 app.disable("x-powered-by");
+
+if (TRUST_PROXY) {
+  app.set("trust proxy", 1);
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    name: "urbanvibe.sid",
-    secret: process.env.SESSION_SECRET || "urbanvibe-super-secret-demo-123456789",
+    name: SESSION_COOKIE_NAME,
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false,
+      secure: SESSION_COOKIE_SECURE,
       sameSite: "lax",
-      maxAge: 1000 * 60 * 60 * 4
+      maxAge: SESSION_COOKIE_MAX_AGE_MS
     }
   })
 );
@@ -323,6 +408,26 @@ function orderRequiresAgeVerification(items = []) {
   );
 }
 
+function isSmtpConfigured() {
+  return Boolean(MAIL_FROM && SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
+}
+
+function createMailTransporter() {
+  if (!isSmtpConfigured()) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    }
+  });
+}
+
 function formatPrice(value) {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -362,6 +467,79 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function buildOrderConfirmationHtml(order) {
+  const itemsHtml = (order.items || [])
+    .map((item) => {
+      const lineTotal = Number(item.price || 0) * Number(item.quantity || 0);
+
+      return `
+        <tr>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.name)}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;text-align:center;">${Number(item.quantity || 0)}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatPrice(lineTotal)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const shippingNoteHtml = order.shippingNote
+    ? `<p style="margin:0 0 8px;"><strong>Nota di spedizione:</strong> ${escapeHtml(order.shippingNote)}</p>`
+    : "";
+
+  const companyHtml =
+    order.customer?.accountType === "business"
+      ? `
+        <p style="margin:0 0 8px;"><strong>Azienda:</strong> ${escapeHtml(order.customer?.companyName || "-")}</p>
+        <p style="margin:0 0 8px;"><strong>Partita IVA:</strong> ${escapeHtml(order.customer?.vatNumber || "-")}</p>
+      `
+      : "";
+
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#111827;">
+      <h1 style="margin-bottom:8px;">Ordine confermato 🎉</h1>
+      <p style="color:#4b5563;line-height:1.6;">
+        Ciao ${escapeHtml(order.customer?.name || "cliente")}, grazie per il tuo acquisto su <strong>UrbanVibe</strong>.
+      </p>
+
+      <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin:20px 0;">
+        <p style="margin:0 0 8px;"><strong>ID ordine:</strong> ${escapeHtml(order.id)}</p>
+        <p style="margin:0 0 8px;"><strong>Data:</strong> ${new Date(order.createdAt).toLocaleString("it-IT")}</p>
+        <p style="margin:0 0 8px;"><strong>Cliente:</strong> ${escapeHtml(order.customer?.name || "-")}</p>
+        ${companyHtml}
+        <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(order.customer?.email || "-")}</p>
+        <p style="margin:0 0 8px;"><strong>Pagamento:</strong> ${escapeHtml(getPaymentLabel(order.payment?.method))}</p>
+        ${shippingNoteHtml}
+        <p style="margin:0;"><strong>Totale:</strong> ${formatPrice(order.total || 0)}</p>
+      </div>
+
+      <h2 style="margin:24px 0 12px;">Riepilogo prodotti</h2>
+
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:10px 8px;border-bottom:2px solid #d1d5db;">Prodotto</th>
+            <th style="text-align:center;padding:10px 8px;border-bottom:2px solid #d1d5db;">Qtà</th>
+            <th style="text-align:right;padding:10px 8px;border-bottom:2px solid #d1d5db;">Totale</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+
+      <div style="margin-top:20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:16px;">
+        <p style="margin:0 0 8px;"><strong>Subtotale:</strong> ${formatPrice(order.subtotal || 0)}</p>
+        <p style="margin:0 0 8px;"><strong>Sconto:</strong> ${formatPrice(order.discount || 0)}</p>
+        <p style="margin:0;"><strong>Totale finale:</strong> ${formatPrice(order.total || 0)}</p>
+      </div>
+
+      <p style="margin-top:24px;color:#6b7280;line-height:1.6;">
+        Ti contatteremo se serviranno ulteriori dettagli sulla consegna.
+      </p>
+    </div>
+  `;
 }
 
 function buildInvoiceText(order) {
@@ -484,14 +662,65 @@ function canAccessNotification(req, notification) {
   return false;
 }
 
+async function isValidAdminLogin(password) {
+  const providedPassword = String(password || "");
+
+  if (!providedPassword) {
+    return false;
+  }
+
+  if (ADMIN_PASSWORD_HASH) {
+    return bcrypt.compare(providedPassword, ADMIN_PASSWORD_HASH);
+  }
+
+  return providedPassword === ADMIN_PASSWORD;
+}
+
+async function sendOrderConfirmationEmail(order) {
+  const transporter = createMailTransporter();
+
+  if (!transporter) {
+    console.warn("SMTP non configurato: email conferma non inviata.");
+    return;
+  }
+
+  const to = order.customer?.email;
+  if (!to) {
+    console.warn("Email cliente mancante: conferma non inviata.");
+    return;
+  }
+
+  await transporter.sendMail({
+    from: MAIL_FROM,
+    to,
+    subject: `Conferma ordine #${order.id} - UrbanVibe`,
+    html: buildOrderConfirmationHtml(order),
+    text: [
+      "Ordine confermato",
+      `ID ordine: ${order.id}`,
+      `Cliente: ${order.customer?.name || "-"}`,
+      order.customer?.accountType === "business"
+        ? `Azienda: ${order.customer?.companyName || "-"}`
+        : "",
+      `Totale: ${formatPrice(order.total || 0)}`,
+      `Pagamento: ${getPaymentLabel(order.payment?.method)}`,
+      order.shippingNote ? `Nota spedizione: ${order.shippingNote}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n")
+  });
+}
+
 /* =========================
    AUTH ADMIN
 ========================= */
 
-app.post("/api/admin/login", (req, res) => {
+app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
 
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+  const isValidPassword = await isValidAdminLogin(password);
+
+  if (username === ADMIN_USERNAME && isValidPassword) {
     req.session.isAdmin = true;
     req.session.adminUser = username;
 
@@ -1166,6 +1395,12 @@ app.post("/api/orders", async (req, res) => {
       });
     }
 
+    try {
+      await sendOrderConfirmationEmail(newOrder);
+    } catch (mailError) {
+      console.error("Errore invio email conferma ordine:", mailError);
+    }
+
     res.status(201).json({
       message: "Ordine salvato con successo",
       order: newOrder
@@ -1521,6 +1756,12 @@ app.get("/", (req, res) => {
 
 async function startServer() {
   await ensureProjectFiles();
+
+  if (!isSmtpConfigured()) {
+    console.warn(
+      "SMTP non configurato completamente: le email di conferma ordine resteranno disattivate."
+    );
+  }
 
   app.listen(PORT, () => {
     console.log(`Server avviato su http://localhost:${PORT}`);
