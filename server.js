@@ -1,70 +1,13 @@
 const express = require("express");
 const path = require("path");
-const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const session = require("express-session");
 const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require("uuid");
 
-function loadEnvFile(envPath = path.join(__dirname, ".env")) {
-  if (!fsSync.existsSync(envPath)) {
-    return;
-  }
-
-  const fileContent = fsSync.readFileSync(envPath, "utf-8");
-
-  fileContent.split(/\r?\n/).forEach((rawLine) => {
-    const line = rawLine.trim();
-
-    if (!line || line.startsWith("#")) {
-      return;
-    }
-
-    const normalizedLine = line.startsWith("export ") ? line.slice(7).trim() : line;
-    const separatorIndex = normalizedLine.indexOf("=");
-
-    if (separatorIndex === -1) {
-      return;
-    }
-
-    const key = normalizedLine.slice(0, separatorIndex).trim();
-    if (!key || process.env[key] !== undefined) {
-      return;
-    }
-
-    let value = normalizedLine.slice(separatorIndex + 1).trim();
-
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-
-    process.env[key] = value;
-  });
-}
-
-loadEnvFile();
-
-function parseBoolean(value, defaultValue = false) {
-  if (value === undefined || value === null || value === "") {
-    return defaultValue;
-  }
-
-  return ["true", "1", "yes", "on"].includes(String(value).trim().toLowerCase());
-}
-
-function requireEnv(name) {
-  const value = String(process.env[name] || "").trim();
-
-  if (!value) {
-    throw new Error(`Variabile ambiente obbligatoria mancante: ${name}`);
-  }
-
-  return value;
-}
-
 const app = express();
-const PORT = Number(process.env.PORT || 3000);
+const PORT = process.env.PORT || 3000;
 
 const rootDir = __dirname;
 const storageRoot = process.env.STORAGE_DIR
@@ -79,26 +22,10 @@ const notificationsPath = path.join(dataDir, "notifications.json");
 const imagesDir = path.join(storageRoot, "images");
 const uploadDir = path.join(imagesDir, "uploads");
 
-const ADMIN_USERNAME = requireEnv("ADMIN_USERNAME");
-const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "");
-const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || "");
-const SESSION_SECRET = requireEnv("SESSION_SECRET");
-const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "urbanvibe.sid";
-const SESSION_COOKIE_MAX_AGE_MS = Number(
-  process.env.SESSION_COOKIE_MAX_AGE_MS || 1000 * 60 * 60 * 4
-);
-const SESSION_COOKIE_SECURE = parseBoolean(
-  process.env.SESSION_COOKIE_SECURE,
-  process.env.NODE_ENV === "production"
-);
-const TRUST_PROXY = parseBoolean(process.env.TRUST_PROXY, process.env.NODE_ENV === "production");
-const DEMO_AGE_VERIFICATION = parseBoolean(process.env.DEMO_AGE_VERIFICATION, true);
-
-if (!ADMIN_PASSWORD && !ADMIN_PASSWORD_HASH) {
-  throw new Error(
-    "Configura ADMIN_PASSWORD oppure ADMIN_PASSWORD_HASH nelle variabili ambiente."
-  );
-}
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
+const DEMO_AGE_VERIFICATION =
+  String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
 
 const COUPONS = [
   { code: "SHOP10", type: "percent", value: 10 },
@@ -111,25 +38,20 @@ const SENSITIVE_SHIPPING_NOTE =
   "Consegnare solo a maggiorenni previa verifica della maggiore età.";
 
 app.disable("x-powered-by");
-
-if (TRUST_PROXY) {
-  app.set("trust proxy", 1);
-}
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    name: SESSION_COOKIE_NAME,
-    secret: SESSION_SECRET,
+    name: "urbanvibe.sid",
+    secret: process.env.SESSION_SECRET || "urbanvibe-super-secret-demo-123456789",
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: SESSION_COOKIE_SECURE,
+      secure: false,
       sameSite: "lax",
-      maxAge: SESSION_COOKIE_MAX_AGE_MS
+      maxAge: 1000 * 60 * 60 * 4
     }
   })
 );
@@ -433,6 +355,15 @@ function getPaymentLabel(method) {
   return labels[method] || method || "-";
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildInvoiceText(order) {
   const lines = [];
   const separator = "========================================";
@@ -553,30 +484,14 @@ function canAccessNotification(req, notification) {
   return false;
 }
 
-async function isValidAdminLogin(password) {
-  const providedPassword = String(password || "");
-
-  if (!providedPassword) {
-    return false;
-  }
-
-  if (ADMIN_PASSWORD_HASH) {
-    return bcrypt.compare(providedPassword, ADMIN_PASSWORD_HASH);
-  }
-
-  return providedPassword === ADMIN_PASSWORD;
-}
-
 /* =========================
    AUTH ADMIN
 ========================= */
 
-app.post("/api/admin/login", async (req, res) => {
+app.post("/api/admin/login", (req, res) => {
   const { username, password } = req.body;
 
-  const isValidPassword = await isValidAdminLogin(password);
-
-  if (username === ADMIN_USERNAME && isValidPassword) {
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     req.session.isAdmin = true;
     req.session.adminUser = username;
 
