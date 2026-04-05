@@ -1,33 +1,10 @@
 const express = require("express");
 const path = require("path");
 const fs = require("node:fs/promises");
-const syncFs = require("node:fs");
 const session = require("express-session");
 const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require("uuid");
-
-const envPath = path.join(__dirname, ".env");
-
-if (syncFs.existsSync(envPath)) {
-  const envLines = syncFs.readFileSync(envPath, "utf8").split(/\r?\n/);
-
-  for (const line of envLines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-
-    const separatorIndex = trimmed.indexOf("=");
-    if (separatorIndex === -1) continue;
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const rawValue = trimmed.slice(separatorIndex + 1).trim();
-    const value = rawValue.replace(/^['"]|['"]$/g, "");
-
-    if (key && process.env[key] === undefined) {
-      process.env[key] = value;
-    }
-  }
-}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,14 +24,8 @@ const uploadDir = path.join(imagesDir, "uploads");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
-const SESSION_SECRET = process.env.SESSION_SECRET;
 const DEMO_AGE_VERIFICATION =
   String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
-
-if (!SESSION_SECRET) {
-  throw new Error("Variabile ambiente obbligatoria mancante: SESSION_SECRET");
-}
-
 
 const COUPONS = [
   { code: "SHOP10", type: "percent", value: 10 },
@@ -73,7 +44,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(
   session({
     name: "urbanvibe.sid",
-    secret: SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || "urbanvibe-super-secret-demo-123456789",
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -352,7 +323,6 @@ function orderRequiresAgeVerification(items = []) {
   );
 }
 
-
 function formatPrice(value) {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
@@ -393,7 +363,6 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-
 
 function buildInvoiceText(order) {
   const lines = [];
@@ -514,10 +483,6 @@ function canAccessNotification(req, notification) {
 
   return false;
 }
-
-/* =========================
-   AUTH ADMIN
-========================= */
 
 /* =========================
    AUTH ADMIN
