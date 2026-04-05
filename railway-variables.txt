@@ -1,0 +1,15 @@
+Variabili minime Railway (scegli UNA tra ADMIN_PASSWORD e ADMIN_PASSWORD_HASH):
+
+SESSION_SECRET=metti-una-chiave-lunga-casuale
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=metti-una-password-forte
+STORAGE_DIR=/data
+DEMO_AGE_VERIFICATION=true
+
+Oppure con hash:
+
+SESSION_SECRET=metti-una-chiave-lunga-casuale
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD_HASH=incolla-qui-l-hash-bcrypt
+STORAGE_DIR=/data
+DEMO_AGE_VERIFICATION=true
