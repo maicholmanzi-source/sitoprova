@@ -1,15 +1,15 @@
-Variabili minime Railway (scegli UNA tra ADMIN_PASSWORD e ADMIN_PASSWORD_HASH):
+Variabili Railway per il servizio web:
 
+DATABASE_URL=${{Postgres.DATABASE_URL}}
 SESSION_SECRET=metti-una-chiave-lunga-casuale
 ADMIN_USERNAME=admin
+# Usa UNA delle due righe qui sotto
 ADMIN_PASSWORD=metti-una-password-forte
+# ADMIN_PASSWORD_HASH=incolla-qui-l-hash-bcrypt
 STORAGE_DIR=/data
 DEMO_AGE_VERIFICATION=true
+TRUST_PROXY=true
+SESSION_COOKIE_SECURE=true
 
-Oppure con hash:
-
-SESSION_SECRET=metti-una-chiave-lunga-casuale
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD_HASH=incolla-qui-l-hash-bcrypt
-STORAGE_DIR=/data
-DEMO_AGE_VERIFICATION=true
+In Railway aggiungi anche un servizio PostgreSQL nel progetto.
+Per le immagini caricate, monta anche un Volume sul path /data.

@@ -5,6 +5,7 @@ const syncFs = require("node:fs");
 const session = require("express-session");
 const multer = require("multer");
 const bcrypt = require("bcryptjs");
+const { Pool } = require("pg");
 const { v4: uuidv4 } = require("uuid");
 
 const envPath = path.join(__dirname, ".env");
@@ -45,12 +46,21 @@ const notificationsPath = path.join(dataDir, "notifications.json");
 const imagesDir = path.join(storageRoot, "images");
 const uploadDir = path.join(imagesDir, "uploads");
 
+const DATABASE_URL = process.env.DATABASE_URL;
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
 const DEMO_AGE_VERIFICATION =
   String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
+const TRUST_PROXY =
+  String(process.env.TRUST_PROXY || "true").toLowerCase() === "true";
+const SESSION_COOKIE_SECURE =
+  String(process.env.SESSION_COOKIE_SECURE || "true").toLowerCase() === "true";
+
+if (!DATABASE_URL) {
+  throw new Error("Variabile ambiente obbligatoria mancante: DATABASE_URL");
+}
 
 if (!SESSION_SECRET) {
   throw new Error("Variabile ambiente obbligatoria mancante: SESSION_SECRET");
@@ -62,6 +72,14 @@ if (!ADMIN_USERNAME) {
 
 if (!ADMIN_PASSWORD && !ADMIN_PASSWORD_HASH) {
   throw new Error("Variabile ambiente obbligatoria mancante: ADMIN_PASSWORD oppure ADMIN_PASSWORD_HASH");
+}
+
+const pool = new Pool({
+  connectionString: DATABASE_URL
+});
+
+if (TRUST_PROXY) {
+  app.set("trust proxy", 1);
 }
 
 
@@ -87,7 +105,7 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false,
+      secure: SESSION_COOKIE_SECURE,
       sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 4
     }
@@ -124,76 +142,298 @@ const upload = multer({
   }
 });
 
+async function readJsonArrayIfExists(filePath) {
+  try {
+    const raw = await fs.readFile(filePath, "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function withTransaction(callback) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const result = await callback(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function insertProducts(client, products) {
+  for (const product of products) {
+    await client.query(
+      `INSERT INTO products (id, name, category, description, long_description, price, image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        Number(product.id),
+        product.name,
+        product.category,
+        product.description,
+        product.longDescription,
+        Number(product.price || 0),
+        product.image || ""
+      ]
+    );
+  }
+}
+
+async function insertUsers(client, users) {
+  for (const user of users) {
+    await client.query(
+      `INSERT INTO users (id, account_type, name, email, password_hash, address, city, company_name, vat_number, contact_person, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        user.id,
+        sanitizeAccountType(user.accountType),
+        user.name,
+        normalizeEmail(user.email),
+        user.passwordHash,
+        user.address || "",
+        user.city || "",
+        user.companyName || "",
+        user.vatNumber || "",
+        user.contactPerson || "",
+        user.createdAt || new Date().toISOString()
+      ]
+    );
+  }
+}
+
+async function insertOrders(client, orders) {
+  for (const order of orders) {
+    await client.query(
+      `INSERT INTO orders (id, created_at, status, user_id, customer, items, subtotal, discount, total, coupon, payment, shipping_note, age_verification, cancelled_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14)`,
+      [
+        Number(order.id),
+        order.createdAt || new Date().toISOString(),
+        order.status || "nuovo",
+        order.userId || null,
+        JSON.stringify(order.customer || {}),
+        JSON.stringify(order.items || []),
+        Number(order.subtotal || 0),
+        Number(order.discount || 0),
+        Number(order.total || 0),
+        order.coupon ? JSON.stringify(order.coupon) : null,
+        order.payment ? JSON.stringify(order.payment) : null,
+        order.shippingNote || null,
+        order.ageVerification ? JSON.stringify(order.ageVerification) : null,
+        order.cancelledAt || null
+      ]
+    );
+  }
+}
+
+async function insertNotifications(client, notifications) {
+  for (const notification of notifications) {
+    await client.query(
+      `INSERT INTO notifications (id, scope, user_id, title, message, link, type, is_read, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        notification.id,
+        notification.scope,
+        notification.userId || null,
+        notification.title,
+        notification.message,
+        notification.link || "",
+        notification.type || "generic",
+        Boolean(notification.isRead),
+        notification.createdAt || new Date().toISOString()
+      ]
+    );
+  }
+}
+
+async function seedTableIfEmpty(tableName, seedLoader, insertFn) {
+  const { rows } = await pool.query(`SELECT COUNT(*)::int AS count FROM ${tableName}`);
+
+  if (rows[0].count > 0) {
+    return;
+  }
+
+  const seedData = await seedLoader();
+
+  if (!seedData.length) {
+    return;
+  }
+
+  await withTransaction(async (client) => {
+    await insertFn(client, seedData);
+  });
+}
+
 async function ensureProjectFiles() {
-  await fs.mkdir(dataDir, { recursive: true });
   await fs.mkdir(imagesDir, { recursive: true });
   await fs.mkdir(uploadDir, { recursive: true });
 
-  try {
-    await fs.access(productsPath);
-  } catch {
-    const defaultProductsPath = path.join(rootDir, "products.json");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL,
+      long_description TEXT NOT NULL,
+      price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+      image TEXT NOT NULL DEFAULT ''
+    );
 
-    try {
-      await fs.copyFile(defaultProductsPath, productsPath);
-    } catch {
-      await fs.writeFile(productsPath, "[]");
-    }
-  }
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY,
+      account_type TEXT NOT NULL DEFAULT 'private',
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      address TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',
+      company_name TEXT NOT NULL DEFAULT '',
+      vat_number TEXT NOT NULL DEFAULT '',
+      contact_person TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
 
-  try {
-    await fs.access(ordersPath);
-  } catch {
-    await fs.writeFile(ordersPath, "[]");
-  }
+    CREATE TABLE IF NOT EXISTS orders (
+      id BIGINT PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      status TEXT NOT NULL DEFAULT 'nuovo',
+      user_id UUID NULL,
+      customer JSONB NOT NULL DEFAULT '{}'::jsonb,
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      subtotal NUMERIC(10, 2) NOT NULL DEFAULT 0,
+      discount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+      total NUMERIC(10, 2) NOT NULL DEFAULT 0,
+      coupon JSONB NULL,
+      payment JSONB NULL,
+      shipping_note TEXT NULL,
+      age_verification JSONB NULL,
+      cancelled_at TIMESTAMPTZ NULL
+    );
 
-  try {
-    await fs.access(usersPath);
-  } catch {
-    await fs.writeFile(usersPath, "[]");
-  }
+    CREATE TABLE IF NOT EXISTS notifications (
+      id UUID PRIMARY KEY,
+      scope TEXT NOT NULL,
+      user_id UUID NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      link TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT 'generic',
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 
-  try {
-    await fs.access(notificationsPath);
-  } catch {
-    await fs.writeFile(notificationsPath, "[]");
-  }
+  await seedTableIfEmpty(
+    "products",
+    async () => {
+      const persistedProducts = await readJsonArrayIfExists(productsPath);
+      if (persistedProducts.length) return persistedProducts;
+      return readJsonArrayIfExists(path.join(rootDir, "products.json"));
+    },
+    insertProducts
+  );
+
+  await seedTableIfEmpty("users", () => readJsonArrayIfExists(usersPath), insertUsers);
+  await seedTableIfEmpty("orders", () => readJsonArrayIfExists(ordersPath), insertOrders);
+  await seedTableIfEmpty(
+    "notifications",
+    () => readJsonArrayIfExists(notificationsPath),
+    insertNotifications
+  );
 }
 
 async function readProducts() {
-  const data = await fs.readFile(productsPath, "utf-8");
-  return JSON.parse(data);
+  const { rows } = await pool.query(
+    `SELECT id, name, category, description, long_description AS "longDescription", price::float AS price, image
+     FROM products
+     ORDER BY id ASC`
+  );
+
+  return rows;
 }
 
 async function writeProducts(products) {
-  await fs.writeFile(productsPath, JSON.stringify(products, null, 2));
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM products");
+    await insertProducts(client, products);
+  });
 }
 
 async function readOrders() {
-  const data = await fs.readFile(ordersPath, "utf-8");
-  return JSON.parse(data);
+  const { rows } = await pool.query(
+    `SELECT id, created_at, status, user_id, customer, items, subtotal::float AS subtotal, discount::float AS discount, total::float AS total, coupon, payment, shipping_note, age_verification, cancelled_at
+     FROM orders`
+  );
+
+  return rows.map((row) => ({
+    id: Number(row.id),
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    status: row.status,
+    userId: row.user_id,
+    customer: row.customer || {},
+    items: Array.isArray(row.items) ? row.items : [],
+    subtotal: Number(row.subtotal || 0),
+    discount: Number(row.discount || 0),
+    total: Number(row.total || 0),
+    coupon: row.coupon || null,
+    payment: row.payment || null,
+    shippingNote: row.shipping_note || null,
+    ageVerification: row.age_verification || null,
+    cancelledAt: row.cancelled_at ? new Date(row.cancelled_at).toISOString() : null
+  }));
 }
 
 async function writeOrders(orders) {
-  await fs.writeFile(ordersPath, JSON.stringify(orders, null, 2));
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM orders");
+    await insertOrders(client, orders);
+  });
 }
 
 async function readUsers() {
-  const data = await fs.readFile(usersPath, "utf-8");
-  return JSON.parse(data);
+  const { rows } = await pool.query(
+    `SELECT id, account_type AS "accountType", name, email, password_hash AS "passwordHash", address, city, company_name AS "companyName", vat_number AS "vatNumber", contact_person AS "contactPerson", created_at
+     FROM users
+     ORDER BY created_at ASC`
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null
+  }));
 }
 
 async function writeUsers(users) {
-  await fs.writeFile(usersPath, JSON.stringify(users, null, 2));
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM users");
+    await insertUsers(client, users);
+  });
 }
 
 async function readNotifications() {
-  const data = await fs.readFile(notificationsPath, "utf-8");
-  return JSON.parse(data);
+  const { rows } = await pool.query(
+    `SELECT id, scope, user_id AS "userId", title, message, link, type, is_read AS "isRead", created_at
+     FROM notifications`
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null
+  }));
 }
 
 async function writeNotifications(notifications) {
-  await fs.writeFile(notificationsPath, JSON.stringify(notifications, null, 2));
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM notifications");
+    await insertNotifications(client, notifications);
+  });
 }
 
 function normalizeEmail(value) {
