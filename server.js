@@ -45,22 +45,14 @@ const notificationsPath = path.join(dataDir, "notifications.json");
 const imagesDir = path.join(storageRoot, "images");
 const uploadDir = path.join(imagesDir, "uploads");
 
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "1234admin";
 const SESSION_SECRET = process.env.SESSION_SECRET;
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const DEMO_AGE_VERIFICATION =
   String(process.env.DEMO_AGE_VERIFICATION || "true").toLowerCase() === "true";
 
 if (!SESSION_SECRET) {
   throw new Error("Variabile ambiente obbligatoria mancante: SESSION_SECRET");
-}
-
-if (!ADMIN_USERNAME) {
-  throw new Error("Variabile ambiente obbligatoria mancante: ADMIN_USERNAME");
-}
-
-if (!ADMIN_PASSWORD) {
-  throw new Error("Variabile ambiente obbligatoria mancante: ADMIN_PASSWORD");
 }
 
 
@@ -1565,10 +1557,8 @@ app.get("/", (req, res) => {
 async function startServer() {
   await ensureProjectFiles();
 
-  const HOST = "0.0.0.0";
-
-  app.listen(PORT, HOST, () => {
-    console.log(`Server avviato su http://${HOST}:${PORT}`);
+  app.listen(PORT, () => {
+    console.log(`Server avviato su http://localhost:${PORT}`);
   });
 }
 
